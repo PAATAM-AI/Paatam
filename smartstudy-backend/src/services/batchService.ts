@@ -3,6 +3,7 @@ import { evaluateStudentAnswerAgainstPdf } from './ragService.js';
 import { getConfiguredGeminiModel } from './aiService.js';
 import { expandPdfFilesToImages } from './pdfRasterService.js';
 import { performOcrPages } from './ocrService.js';
+import { isHindiOrTelugu } from './sarvamService.js';
 import { supabase, uploadImageToSupabase } from '../db/supabase.js';
 import { detectAndSplitStudentSubmissions, formatStudentDisplayName, isSameStudent, runWithConcurrency, SplitProgressUpdate } from './studentBoundaryService.js';
 
@@ -258,6 +259,17 @@ export function getBatchJob(jobId: string): BatchJob | null {
 }
 
 /**
+ * Remove a deleted submission from in-memory batch jobs
+ */
+export function removeSubmissionFromBatchJobs(submissionId: string) {
+  Object.values(batchJobs).forEach((job) => {
+    if (Array.isArray(job.submissions)) {
+      job.submissions = job.submissions.filter((s) => s.id !== submissionId);
+    }
+  });
+}
+
+/**
  * Background Concurrency Worker Pool for Gemini Pay-As-You-Go
  */
 async function processBatchQueue(
@@ -307,7 +319,12 @@ async function processBatchQueue(
   assignedQuestions = typeof assignment.questions_json === 'string' ? JSON.parse(assignment.questions_json || '[]') : assignment.questions_json;
   if (!Array.isArray(assignedQuestions) || assignedQuestions.length === 0) throw new Error(`Assignment '${assignmentId}' has no questions.`);
   const effectiveMarkingScheme = (markingSchemeText || '').trim() || (assignment.answer_key_text || '').trim();
-  if (process.env.PRIMARY_AI_PROVIDER?.toLowerCase() !== 'sarvam' && assignment.reasoning_model) reasoningModel = assignment.reasoning_model;
+  const isIndicBatch = isHindiOrTelugu(selectedLanguage, subjectName);
+  if (isIndicBatch && process.env.SARVAM_API_KEY) {
+    reasoningModel = 'sarvam';
+  } else if (process.env.PRIMARY_AI_PROVIDER?.toLowerCase() !== 'sarvam' && assignment.reasoning_model) {
+    reasoningModel = assignment.reasoning_model;
+  }
 
   // 2. Group files by groupKey
   const studentGroups: Record<string, BatchItemFile[]> = {};
@@ -378,7 +395,8 @@ async function processBatchQueue(
       let ocrText = '';
       let langCode = selectedLanguage.substring(0, 3).toUpperCase();
 
-      if (primaryFile?.preExtractedOcr) {
+      const isIndicStudent = isHindiOrTelugu(selectedLanguage, subjectName);
+      if (primaryFile?.preExtractedOcr && !isIndicStudent) {
         ocrText = primaryFile.preExtractedOcr;
         console.log(`⚡ [SINGLE-PASS OCR] Reusing pre-extracted OCR (${ocrText.length} chars) for "${studentName}" (zero duplicate OCR calls).`);
       } else {

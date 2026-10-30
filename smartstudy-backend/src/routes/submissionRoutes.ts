@@ -4,9 +4,9 @@ import { AuthenticatedRequest, optionalAuth } from '../middleware/authMiddleware
 import { uploadDisk } from '../middleware/upload.js';
 import { performOcrPages } from '../services/ocrService.js';
 import { evaluateStudentAnswerAgainstPdf } from '../services/ragService.js';
-import { createBatchJob, getBatchJob } from '../services/batchService.js';
+import { createBatchJob, getBatchJob, removeSubmissionFromBatchJobs } from '../services/batchService.js';
 import { sendAndLogParentNotification } from '../services/notificationService.js';
-import { supportsSarvamDocumentLanguage } from '../services/sarvamService.js';
+import { supportsSarvamDocumentLanguage, isHindiOrTelugu } from '../services/sarvamService.js';
 import { getConfiguredGeminiModel } from '../services/aiService.js';
 
 const router = Router();
@@ -65,10 +65,11 @@ router.post('/submissions', uploadDisk.any(), optionalAuth, async (req: Authenti
       if (assignData.class_name) targetClassName = assignData.class_name;
       targetSubject = assignData.subject || assignData.class_name || targetSubject;
       if (!selectedLanguage && assignData.language) lang = assignData.language;
-      if (process.env.PRIMARY_AI_PROVIDER?.toLowerCase() === 'sarvam' && !supportsSarvamDocumentLanguage(lang)) {
-        reasoningModel = getConfiguredGeminiModel();
-      }
-      if (process.env.PRIMARY_AI_PROVIDER?.toLowerCase() !== 'sarvam' && assignData.reasoning_model) {
+      if (isHindiOrTelugu(lang, targetSubject) && process.env.SARVAM_API_KEY) {
+        reasoningModel = 'sarvam';
+      } else if (process.env.PRIMARY_AI_PROVIDER?.toLowerCase() === 'sarvam') {
+        reasoningModel = supportsSarvamDocumentLanguage(lang) ? 'sarvam' : getConfiguredGeminiModel();
+      } else if (assignData.reasoning_model) {
         reasoningModel = assignData.reasoning_model;
       }
       if (assignData.questions_json) {
@@ -351,7 +352,7 @@ router.get('/submissions', optionalAuth, async (req: AuthenticatedRequest, res: 
         urls = [r.sample_paper_url];
       }
 
-      const matchedAssignment = assignMap[r.assignment_id] || (Object.values(assignMap).length > 0 ? Object.values(assignMap)[0] : null);
+      const matchedAssignment = r.assignment_id ? (assignMap[r.assignment_id] || null) : null;
 
       let parsedAiEval: any = null;
       if (r.ai_evaluation_json) {
@@ -514,7 +515,12 @@ router.delete('/submissions/:id', optionalAuth, async (req: AuthenticatedRequest
 
       if (storagePaths.length > 0) {
         try {
-          await supabase.storage.from('student-submissions').remove(storagePaths);
+          const { error: rmErr } = await supabase.storage.from('student-submissions').remove(storagePaths);
+          if (rmErr) {
+            for (const sp of storagePaths) {
+              await supabase.storage.from('student-submissions').upload(sp, Buffer.from(''), { upsert: true });
+            }
+          }
         } catch (stErr) {
           console.warn('⚠️ Storage file cleanup notice:', stErr);
         }
@@ -523,6 +529,7 @@ router.delete('/submissions/:id', optionalAuth, async (req: AuthenticatedRequest
 
     const { error } = await supabase.from('submissions').delete().eq('id', id);
     if (error) throw error;
+    removeSubmissionFromBatchJobs(String(id));
     res.json({ success: true, message: 'Submission and associated files deleted successfully.' });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err?.message || 'Error deleting submission' });
@@ -563,7 +570,12 @@ router.delete('/submissions', optionalAuth, async (req: AuthenticatedRequest, re
 
       if (storagePaths.length > 0) {
         try {
-          await supabase.storage.from('student-submissions').remove(storagePaths);
+          const { error: rmErr } = await supabase.storage.from('student-submissions').remove(storagePaths);
+          if (rmErr) {
+            for (const sp of storagePaths) {
+              await supabase.storage.from('student-submissions').upload(sp, Buffer.from(''), { upsert: true });
+            }
+          }
         } catch (stErr) {
           console.warn('⚠️ Storage files bulk cleanup notice:', stErr);
         }
@@ -572,6 +584,7 @@ router.delete('/submissions', optionalAuth, async (req: AuthenticatedRequest, re
       const ids = subs.map((s) => s.id);
       const { error: delErr } = await supabase.from('submissions').delete().in('id', ids);
       if (delErr) throw delErr;
+      ids.forEach((sid) => removeSubmissionFromBatchJobs(sid));
     }
 
     res.json({ success: true, count: subs?.length || 0, message: 'Submissions and storage files cleaned up.' });

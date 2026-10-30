@@ -286,6 +286,8 @@ router.get('/question-modules', optionalAuth, async (req: AuthenticatedRequest, 
 router.delete('/assignments/:id', optionalAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { id } = req.params;
+    // Clean up related submissions first
+    await supabase.from('submissions').delete().eq('assignment_id', id);
     const { error } = await supabase.from('assignments').delete().eq('id', id);
     if (error) throw error;
     res.json({ success: true, message: 'Assignment deleted successfully.' });

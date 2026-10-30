@@ -26,6 +26,7 @@ import {
   generateSingleQuestionReplacement,
   generateQuestionImageOrDiagram
 } from '../services/aiService.js';
+import { performSarvamVisionOcr, shouldRouteOcrToSarvam, isHindiOrTelugu } from '../services/sarvamService.js';
 
 const router = Router();
 
@@ -177,16 +178,37 @@ router.post('/rag/extract-answer-key', uploadDisk.any(), optionalAuth, async (re
       console.warn('⚠️ Answer key source upload notice:', err);
     }
 
-    const prompt = 'This is a printed teacher answer key / marking scheme document, potentially spanning multiple questions. Perform high-precision OCR and return ONLY the transcribed text, preserving question numbers, benchmark answers, and marks allocation exactly as printed.';
+    const languageOrSubject = String(req.body.subjectLanguage || req.body.language || req.body.subject || req.body.className || 'English');
+    const imageBuffers = (pageFiles as any[]).map((f) => f.buffer);
+    const mimeTypes = (pageFiles as any[]).map((f) => f.mimetype || 'image/jpeg');
+    let answerKeyText = '';
 
-    const pageTexts = await Promise.all(
-      (pageFiles as any[]).map((file) => callGemini36Api(prompt, file.buffer, file.mimetype || 'image/jpeg', 3, getConfiguredGeminiModel()))
-    );
+    const sarvamNeeded = shouldRouteOcrToSarvam(languageOrSubject) || (Boolean(process.env.SARVAM_API_KEY) && isHindiOrTelugu(languageOrSubject));
+    if (sarvamNeeded) {
+      try {
+        console.log(`🇮🇳 [ANSWER KEY EXTRACTOR] Routing "${languageOrSubject}" answer key through Sarvam DocAI Vision OCR (${imageBuffers.length} page(s))...`);
+        const sarvamTranscription = await performSarvamVisionOcr(imageBuffers, mimeTypes, languageOrSubject);
+        if (sarvamTranscription?.trim()) {
+          answerKeyText = sarvamTranscription.trim();
+          console.log(`✅ [ANSWER KEY SUCCESS] Extracted ${answerKeyText.length} characters via Sarvam DocAI.`);
+        }
+      } catch (sarvamErr) {
+        console.warn('⚠️ [ANSWER KEY EXTRACTOR] Sarvam OCR failed; using Gemini fallback:', sarvamErr);
+      }
+    }
 
-    const answerKeyText = pageTexts
-      .map((text, index) => (pageFiles.length > 1 ? `--- PAGE ${index + 1} ---\n${(text || '').trim()}` : (text || '').trim()))
-      .join('\n\n')
-      .trim();
+    if (!answerKeyText) {
+      const prompt = `This is a printed teacher answer key / marking scheme document in ${languageOrSubject}, potentially spanning multiple questions. Perform high-precision OCR and return ONLY the transcribed text, preserving question numbers, benchmark answers, and marks allocation exactly as printed.`;
+
+      const pageTexts = await Promise.all(
+        (pageFiles as any[]).map((file) => callGemini36Api(prompt, file.buffer, file.mimetype || 'image/jpeg', 3, getConfiguredGeminiModel()))
+      );
+
+      answerKeyText = pageTexts
+        .map((text, index) => (pageFiles.length > 1 ? `--- PAGE ${index + 1} ---\n${(text || '').trim()}` : (text || '').trim()))
+        .join('\n\n')
+        .trim();
+    }
 
     if (!answerKeyText) {
       return res.status(422).json({ success: false, message: 'Could not transcribe text from uploaded answer key.' });

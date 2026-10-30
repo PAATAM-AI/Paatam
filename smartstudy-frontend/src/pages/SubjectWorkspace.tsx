@@ -190,6 +190,8 @@ export default function SubjectWorkspace() {
     try {
       const formData = new FormData();
       answerKeyFiles.forEach((f) => formData.append('answerKey', f));
+      formData.append('subject', subjectName);
+      formData.append('className', effectiveClassName);
       const data = await uploadWithProgress(`${API_BASE_URL}/api/rag/extract-answer-key`, formData, setAnswerKeyUploadPct);
       if (data.success && data.answerKeyText) setExtractedAnswerKeyText(data.answerKeyText);
       setAnswerKeyUrl(data.answerKeyUrl || '');

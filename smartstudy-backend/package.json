@@ -9,6 +9,7 @@
     "dev": "tsx watch src/index.ts",
     "send-whatsapp": "tsx src/scripts/sendRealWhatsapp.ts",
     "build": "tsc",
+    "test": "tsx --test tests/*.test.ts",
     "provider-eval": "tsx ../provider-evaluation/src/runner.ts"
   },
   "keywords": [],

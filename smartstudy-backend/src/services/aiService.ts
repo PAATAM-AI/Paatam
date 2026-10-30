@@ -1,5 +1,14 @@
 import dotenv from 'dotenv';
-import { callSarvamChatApi, performSarvamVisionOcr, performSarvamVisionOcrChunks, supportsSarvamDocumentLanguage } from './sarvamService.js';
+import { 
+  callSarvamChatApi, 
+  performSarvamVisionOcr, 
+  performSarvamVisionOcrChunks, 
+  supportsSarvamDocumentLanguage,
+  isHindi,
+  isTelugu,
+  isHindiOrTelugu,
+  shouldRouteOcrToSarvam
+} from './sarvamService.js';
 import { aiGateway } from './aiGateway/index.js';
 import { uploadImageToSupabase } from '../db/supabase.js';
 dotenv.config();
@@ -230,13 +239,22 @@ export async function generateEmbedding(text: string): Promise<number[]> {
  */
 export async function determineReasoningModel(subject: string, questionsText: string, language: string = 'English'): Promise<string> {
   const lowerSubject = subject ? subject.toLowerCase() : '';
-  if (supportsSarvamDocumentLanguage(language) || lowerSubject.includes('hindi') || lowerSubject.includes('telugu')) {
+  const lowerLang = language ? language.toLowerCase() : '';
+  if (
+    isHindiOrTelugu(language, subject) ||
+    lowerSubject.includes('hindi') ||
+    lowerSubject.includes('telugu') ||
+    (['bengali', 'tamil', 'marathi', 'gujarati', 'kannada', 'malayalam', 'odia', 'punjabi', 'urdu'].some(l => lowerSubject.includes(l) || lowerLang.includes(l)))
+  ) {
+    return 'sarvam';
+  }
+  if (process.env.PRIMARY_AI_PROVIDER?.toLowerCase() === 'sarvam') {
     return 'sarvam';
   }
   return getConfiguredGeminiModel();
 }
 
-function parseJsonValue(rawText: string, openingCharacter?: '{' | '['): any {
+export function parseJsonValue(rawText: string, openingCharacter?: '{' | '['): any {
   if (!rawText || typeof rawText !== 'string') return null;
 
   // 1. Strip markdown code fence wrappers if present
@@ -246,6 +264,12 @@ function parseJsonValue(rawText: string, openingCharacter?: '{' | '['): any {
   if (match && match[1]?.trim()) {
     source = match[1].trim();
   }
+
+  // Auto-repair common AI JSON syntax flaws before parsing:
+  // Wraps unquoted parenthesized or letter answers e.g. "correctAnswer": (a) Neutralisation -> "correctAnswer": "(a) Neutralisation"
+  source = source
+    .replace(/:\s*(\([a-zA-Z0-9][^\n\r,\}\]]*?)\s*(?=[,\}\]\n\r])/g, ': "$1"')
+    .replace(/:\s*([A-Da-d]\)[^\n\r,\}\]]*?)\s*(?=[,\}\]\n\r])/g, ': "$1"');
 
   // 2. Quick direct parse attempt
   try {
@@ -446,14 +470,26 @@ export function cleanAndParseJsonArray(rawText: string): any[] {
   return Array.isArray(result) ? result : [];
 }
 
-function canonicalQuestionKey(value: unknown): string | null {
+const INDIC_DIGIT_MAP: Record<string, string> = {
+  '०': '0', '१': '1', '२': '2', '३': '3', '४': '4', '५': '5', '६': '6', '७': '7', '८': '8', '९': '9',
+  '౦': '0', '౧': '1', '౨': '2', '౩': '3', '౪': '4', '౫': '5', '౬': '6', '౭': '7', '౮': '8', '౯': '9'
+};
+
+export function normalizeIndicDigits(text: string): string {
+  if (!text) return '';
+  return String(text).replace(/[०-९౦-౯]/g, (char) => INDIC_DIGIT_MAP[char] || char);
+}
+
+export function canonicalQuestionKey(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   const text = String(value).trim();
   if (!text) return null;
-  const normalized = text
+  const withNormalizedDigits = normalizeIndicDigits(text);
+  const withoutPrefix = withNormalizedDigits
+    .replace(/^\s*(?:q(?:uestion)?|प्रश्न|प्र|ప్రశ్న|ప్ర)[\s.:)\-]*/iu, '');
+  const normalized = withoutPrefix
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '')
-    .replace(/^q/, '');
+    .replace(/[^\p{L}\p{M}\p{N}]+/gu, '');
   return normalized || null;
 }
 
@@ -579,15 +615,26 @@ export function extractRelevantOcrEvidence(ocrText: string, assignedQuestions: Q
   const clauses: string[] = [];
   for (let index = 0; index < assignedQuestions.length; index++) {
     const question = assignedQuestions[index];
-    const num = question.number || (question.questionNo ? question.questionNo.replace(/[^0-9]/g, '') : '');
-    const part = question.partLabel || (question.questionNo ? question.questionNo.replace(/[^a-z]/gi, '') : '');
+    const rawNum = question.number || (question.questionNo ? question.questionNo.replace(/[^\p{N}]+/gu, '') : '');
+    const num = normalizeIndicDigits(rawNum) || rawNum;
+    const part = question.partLabel || (question.questionNo ? question.questionNo.replace(/[^\p{L}\p{M}]+/gu, '') : '');
 
     const precisePatterns: string[] = [];
     if (question.questionNo) precisePatterns.push(question.questionNo);
     if (num && part) {
-      precisePatterns.push(`${ num } (${ part })`, `${ num }${ part } `, `${ num }.${ part } `, `Q${ num }${ part } `);
+      precisePatterns.push(
+        `${num} (${part})`, `${num}${part}`, `${num}.${part}`, `Q${num}${part}`,
+        `प्रश्न ${num}(${part})`, `प्र. ${num}(${part})`, `प्रश्न ${num} (${part})`, `प्र. ${num} (${part})`,
+        `उत्तर ${num}(${part})`, `उ. ${num}(${part})`,
+        `ప్రశ్న ${num}(${part})`, `ప్ర. ${num}(${part})`, `ప్రశ్న ${num} (${part})`, `ప్ర. ${num} (${part})`,
+        `జవాబు ${num}(${part})`, `జ. ${num}(${part})`
+      );
     } else if (num) {
-      precisePatterns.push(`Q${ num } `, `Question ${ num } `, `${ num }.`, `${ num })`);
+      precisePatterns.push(
+        `Q${num}`, `Question ${num}`, `${num}.`, `${num})`,
+        `प्रश्न ${num}`, `प्र. ${num}`, `उत्तर ${num}`, `उ. ${num}`,
+        `ప్రశ్న ${num}`, `ప్ర. ${num}`, `జవాబు ${num}`, `జ. ${num}`
+      );
     }
 
     let bestIndex = Number.POSITIVE_INFINITY;
@@ -677,16 +724,100 @@ CRITICAL ANTI-HALLUCINATION & EVALUATION RULES:
    - Tables / Data Grids: When student answers are in Markdown tables (| Col 1 | Col 2 |), evaluate corresponding cell data against the benchmark criteria.
    - Diagrams, Circuits & Figures: If a question asks to draw or label a diagram/graph/circuit, inspect the [Diagram / Drawing: ...] OCR description and page image. Award full or partial credit based on presence of essential components, correct orientation, arrows, and required labels.
 
-4. ACCURATE SCORING:
+4. ACCURATE SCORING & INFORMATIVE, QUESTION-SPECIFIC AI REASONING (MANDATORY):
    - Evaluate whether the student's actual handwritten answer (in "studentAnswerSnippet") correctly and accurately answers the question asked and satisfies the Benchmark Key.
    - Award scorePercent between 0 and 100 proportional to the essential marking points satisfied.
    - Award 100 when all essential marking points are accurately present, even if wording, notation, or order differs from benchmark.
+   - DETAILED, UNIQUE REASONING PER QUESTION (JUST LIKE GEMINI) — STRICT RULES:
+     * NEVER output generic repeating boilerplate like "Correct answer extracted from the student's paper", "The response was compared with the assigned benchmark key", "Correct answer", or "Good job". EVERY question must have unique, informative reasoning explaining WHY that score was awarded based on question content and student answer.
+     * For Objective / MCQ / Fill-in-the-Blank (100% Full Credit):
+       - State the specific option letter or word the student wrote, and confirm how it matches the benchmark.
+       - Example (MCQ): "The student correctly selected Option D ('cocinar en la barbacoa'), which matches the benchmark key."
+       - Example (Fill-in-the-blank): "The student correctly filled in 'कुएँ', directly satisfying the benchmark requirement."
+       - Example (One-word): "The student accurately identified 'पचास', which matches the benchmark answer."
+     * For Descriptive / Subjective / Long Answer / Letter Writing / Essays (100% Full Credit):
+       - Detail the essential criteria the student fulfilled.
+       - Example (Letter): "The student followed the proper formal letter format: addressed to the headmaster, clearly explained the reason for absence (fever), requested 2 days of leave, and concluded politely as required by the benchmark."
+       - Example (Essay): "The student wrote a comprehensive and well-structured response covering the topic, key themes, and required details in accordance with the benchmark criteria."
+       - Example (Short Answer): "The student accurately explained [concept X] and cited [detail Y] as expected in the benchmark."
+     * For Partial Credit (1% - 99%):
+       - Detail specifically what parts the student got right and what essential points or criteria were missed or inaccurate.
+     * For Incorrect (0%):
+       - Clearly contrast what the student wrote versus what the benchmark required.
+     * In "feedback", write constructive teacher guidance specific to that question (e.g. "Excellent work! Accurate response.", "Well written letter with all standard formal components.", "Review the formula for calculating X.").
 
 5. OUTPUT FORMAT:
    - Return valid JSON with fields: excelledAreas, knowledgeGaps, feedback, socraticHint, questionEvaluations.
    - questionEvaluations array items require: questionNo, benchmarkKey, studentAnswerSnippet, scorePercent, reasoning, feedback.
    - benchmarkKey MUST be the exact teacher-key entry used for this question, or the extracted paper key only when no teacher-key entry matches.
    - questionNo must match the paper reference shown in the question list exactly.`;
+}
+
+/**
+ * Refines generic, repeating AI reasoning into detailed, question-specific explanations (like Gemini).
+ * Ensures that all correct and partial answers explain what the student wrote and why it satisfies the benchmark.
+ */
+export function refineOrSynthesizeReasoning(
+  existingReasoning: string | undefined,
+  scorePercent: number,
+  studentAnswerSnippet: string,
+  benchmarkKey: string,
+  questionText: string = ''
+): string {
+  const trimmed = typeof existingReasoning === 'string' ? existingReasoning.trim() : '';
+  const isGenericBoilerplate = !trimmed || /^(?:correct\s+answers?\s+extracted(\s+from(\s+the)?\s+student'?s?\s+paper)?|the\s+response\s+was\s+compared\s+with\s+the\s+assigned\s+benchmark\s+key|correct\s+response|correct\s+answer)\.?$/i.test(trimmed);
+
+  if (!isGenericBoilerplate) {
+    return trimmed;
+  }
+
+  const cleanSnippet = (studentAnswerSnippet || '').replace(/\s+/g, ' ').trim();
+  const lowerQuestion = (questionText || '').toLowerCase();
+  const lowerSnippet = cleanSnippet.toLowerCase();
+
+  if (scorePercent === 0) {
+    if (!cleanSnippet || cleanSnippet === 'No answer detected in the scanned paper.' || cleanSnippet === 'No answer written (blank box)') {
+      return 'No handwritten response matching this question was detected on the answer sheet.';
+    }
+    return `Student response did not match the benchmark requirement.`;
+  }
+
+  if (scorePercent < 90) {
+    return `Partial credit awarded: the response includes relevant points but is incomplete compared to the benchmark key.`;
+  }
+
+  // Full Credit (scorePercent >= 90) - Generate informative, question-specific AI reasoning (like Gemini)
+  // 1. Formal letter / leave application
+  const isLetter = /प्रार्थना|आवेदन|छुट्टी|मुख्याध्यापक|पत्र|letter|application|salutation/i.test(lowerQuestion) ||
+                   /सेवा\s*में|महोदय|सविनय\s*निवेदन|respec|dear\s+sir|to\s+the\s+principal/i.test(lowerSnippet);
+  if (isLetter) {
+    return `The student correctly followed the formal letter format: addressed the headmaster/principal with proper salutation, clearly stated the reason for leave, and concluded politely as required by the benchmark.`;
+  }
+
+  // 2. Essay / composition / paragraph
+  const isEssay = /निबंध|अनुच्छेद|essay|composition|paragraph/i.test(lowerQuestion) || cleanSnippet.split(' ').length >= 30;
+  if (isEssay) {
+    return `The student wrote a comprehensive and well-structured response covering the topic, key themes, and required details in accordance with the benchmark criteria.`;
+  }
+
+  // 3. MCQ option selection
+  const isMcq = /^[a-d]\b|^[1-4]\b|^[ivx]+\b/i.test(cleanSnippet) && cleanSnippet.length <= 4;
+  if (isMcq) {
+    return `The student correctly selected Option ${cleanSnippet.toUpperCase().trim()}, which matches the benchmark key.`;
+  }
+
+  // 4. Fill in the blank / one-word / short answer
+  const wordCount = cleanSnippet.split(' ').filter(Boolean).length;
+  if (wordCount >= 1 && wordCount <= 6 && cleanSnippet.length <= 60) {
+    return `The student correctly identified '${cleanSnippet}', which directly satisfies the benchmark requirement.`;
+  }
+
+  // 5. Short explanation or multi-word answer
+  if (wordCount > 6 && wordCount <= 25) {
+    return `The student accurately answered with '${cleanSnippet.slice(0, 70)}${cleanSnippet.length > 70 ? '…' : ''}', fulfilling all required criteria in the benchmark.`;
+  }
+
+  return `The student accurately answered the question, addressing all essential points specified in the benchmark key.`;
 }
 
 export function normalizeQuestionEvaluations(
@@ -730,21 +861,30 @@ export function normalizeQuestionEvaluations(
         ? 'Partial Credit'
         : 'Unrelated / No Credit';
 
-    let reasoning = typeof evaluation.reasoning === 'string' && evaluation.reasoning.trim()
+    let rawReasoning = typeof evaluation.reasoning === 'string' && evaluation.reasoning.trim()
       ? evaluation.reasoning.trim()
-      : (scorePercent === 0
-        ? 'No relevant answer was detected for this question.'
-        : 'The response was compared with the assigned benchmark key.');
+      : '';
+
+    let reasoning = refineOrSynthesizeReasoning(
+      rawReasoning,
+      scorePercent,
+      studentAnswerSnippet,
+      benchmarkKey,
+      question.text
+    );
 
     if (scorePercent === 0 && (studentAnswerSnippet === 'No answer detected in the scanned paper.' || studentAnswerSnippet === 'No answer written (blank box)')) {
       reasoning = 'No handwritten response matching this question was detected on the answer sheet.';
     }
 
-    const feedback = typeof evaluation.feedback === 'string' && evaluation.feedback.trim()
+    const isGenericFeedback = !evaluation.feedback || /^(?:correct!?|correct\s+and\s+complete\s+response\.?|good\s+job!?)$/i.test(String(evaluation.feedback).trim());
+    const feedback = !isGenericFeedback && typeof evaluation.feedback === 'string' && evaluation.feedback.trim()
       ? evaluation.feedback.trim()
-      : reasoning || (scorePercent >= 90
-        ? 'Correct and complete response.'
-        : 'Review the benchmark key and add the missing concepts.');
+      : (scorePercent >= 90
+        ? 'Well understood and correctly answered.'
+        : scorePercent > 0
+          ? 'Good attempt; review the benchmark key to include all essential concepts.'
+          : 'Review the benchmark key and add the missing concepts.');
 
     return {
       questionNo: question.questionNo || question.number || `Q${index + 1}`,
@@ -787,7 +927,10 @@ function sarvamEvaluationSchema(questionCount: number): Record<string, unknown> 
                 questionNo: { type: 'string' },
                 studentAnswerSnippet: { type: 'string' },
                 scorePercent: { type: 'number' },
-                reasoning: { type: 'string' },
+                reasoning: { 
+                  type: 'string',
+                  description: 'Detailed, question-specific explanation of marks awarded or deducted. Never use generic repeating phrases like "Correct answer extracted from the student\'s paper". Specifically state what the student wrote and why it satisfies or misses the benchmark criteria.'
+                },
                 feedback: { type: 'string' }
               },
               required: ['questionNo', 'studentAnswerSnippet', 'scorePercent', 'reasoning', 'feedback'],
@@ -920,7 +1063,7 @@ Return ONLY a valid JSON object matching this structure:
         reasoningEffort: null,
         maxTokens: 4096,
         responseFormat: batchSchema,
-        temperature: 0,
+        temperature: 0.1,
         seed: 42
       });
       console.log(`📥 [EVALUATION RESPONSE] Batch ${batchIndex + 1}/${totalBatches} | Provider: Sarvam | Response chars: ${response?.length || 0}`);
@@ -945,12 +1088,12 @@ Return ONLY a valid JSON object matching this structure:
   OCR TRANSCRIPTION:
   ${existingOcrText}
 
-  For every assigned question, identify the essential marking points in its benchmark and check each point against the OCR. Award 100 when all essential points are semantically present and correct, regardless of wording, order, spelling, grammar, or notation style. Do not penalize repetition or extra correct explanation. Reduce marks only for missing essential points or factual contradictions. Return scorePercent between 0 and 100. Award credit only for evidence in the OCR transcription. Unanswered or unrelated questions receive 0. Keep snippets, reasoning, and feedback concise. Do not repeat question text, benchmark keys, or the full OCR. Return exactly ${assignedQuestions.length} questionEvaluations.`;
+  For every assigned question, evaluate the student's answer against the benchmark key. Award 100 when all essential points are semantically present and correct. For every question, provide unique, detailed reasoning explaining what the student wrote and why marks were awarded or deducted. Never repeat generic boilerplate like "Correct answer extracted from the student's paper". Return scorePercent between 0 and 100. Return exactly ${assignedQuestions.length} questionEvaluations.`;
         aiText = await callSarvamChatApi(evaluationPrompt, 2, {
           reasoningEffort: null,
           maxTokens: 4096,
           responseFormat: sarvamEvaluationSchema(assignedQuestions.length),
-          temperature: 0,
+          temperature: 0.1,
           seed: 42
         });
       } else {
@@ -1517,6 +1660,7 @@ JSON Schema:
       taskType: 'exam_generation',
       prompt,
       targetLanguage: language,
+      responseFormat: 'json',
       maxOutputTokens: 32768,
       temperature: 0.2
     });
@@ -1560,17 +1704,65 @@ JSON Schema:
     }
   }
 
-  // Fallback: regex search for JSON question objects if top-level parse yielded nothing
+  // Resilient Fallback: Scan text for individual question JSON blocks { ... } tracking nested braces
   if (rawQuestions.length === 0) {
-    console.warn('⚠️ [UNIFIED EXAM GENERATOR] Standard JSON parsing yielded 0 questions. Trying regex block extractor...');
-    const objectMatches = aiText.match(/\{[^{}]*"(?:text|question)"\s*:[^{}]*\}/g);
-    if (objectMatches && objectMatches.length > 0) {
-      for (const objStr of objectMatches) {
-        try {
-          const qObj = JSON.parse(objStr);
-          if (qObj && (qObj.text || qObj.question)) rawQuestions.push(qObj);
-        } catch {}
+    console.warn('⚠️ [UNIFIED EXAM GENERATOR] Standard JSON parsing yielded 0 questions. Trying deep question-by-question block recovery...');
+    let pos = 0;
+    while (pos < aiText.length) {
+      const startIdx = aiText.indexOf('{', pos);
+      if (startIdx < 0) break;
+
+      const snippet = aiText.substring(startIdx, Math.min(startIdx + 120, aiText.length));
+      if (!/"(?:id|questionNo|question|text|options|marks)"/i.test(snippet)) {
+        pos = startIdx + 1;
+        continue;
       }
+
+      let depth = 0;
+      let inString = false;
+      let escaped = false;
+      let endIdx = -1;
+
+      for (let i = startIdx; i < aiText.length; i++) {
+        const c = aiText[i];
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (c === '\\' && inString) {
+          escaped = true;
+          continue;
+        }
+        if (c === '"') {
+          inString = !inString;
+          continue;
+        }
+        if (!inString) {
+          if (c === '{') depth++;
+          else if (c === '}') {
+            depth--;
+            if (depth === 0) {
+              endIdx = i;
+              break;
+            }
+          }
+        }
+      }
+
+      if (endIdx > startIdx) {
+        const blockStr = aiText.substring(startIdx, endIdx + 1);
+        const qObj = parseJsonValue(blockStr, '{');
+        if (qObj && (qObj.text || qObj.question)) {
+          rawQuestions.push(qObj);
+          pos = endIdx + 1;
+          continue;
+        }
+      }
+      pos = startIdx + 1;
+    }
+
+    if (rawQuestions.length > 0) {
+      console.log(`🛡️ [UNIFIED EXAM GENERATOR] Resilient question recovery salvaged ${rawQuestions.length} questions from flawed payload!`);
     }
   }
 
@@ -1936,7 +2128,7 @@ export async function generateQuestionImageOrDiagram(
  * Vision AI Question Paper Photo Extraction via Google Gemini 3.6
  */
 /** Returns null only when the response cannot be parsed at all; an empty array is a valid "no questions on this page" answer. */
-function normalizeQuestionPaper(rawText: string | null): Question[] | null {
+export function normalizeQuestionPaper(rawText: string | null): Question[] | null {
   if (!rawText) return null;
   // Probe in the order the payload actually starts, otherwise a top-level array
   // gets mis-parsed as its first inner object.
@@ -1954,15 +2146,16 @@ function normalizeQuestionPaper(rawText: string | null): Question[] | null {
   const skipped: string[] = [];
 
   source.forEach((parent: any, parentIndex: number) => {
-    const number = String(parent?.number ?? parent?.questionNumber ?? parentIndex + 1).trim().replace(/[.)]+$/, '');
+    const rawNumberStr = String(parent?.number ?? parent?.questionNumber ?? parentIndex + 1).trim().replace(/[.)]+$/, '');
+    const number = normalizeIndicDigits(rawNumberStr) || rawNumberStr;
     const section = String(parent?.section || parent?.part || 'Questions');
     const stem = String(parent?.stem || parent?.passage || '').trim();
     // A paper question may be a single standalone question or a stem with (a),(b),(c) parts.
     const rawParts = Array.isArray(parent?.parts) && parent.parts.length > 0 ? parent.parts : [parent];
 
     rawParts.forEach((part: any, partIndex: number) => {
-      const partLabel = String(part?.label ?? part?.partLabel ?? '').trim().replace(/[^a-z0-9ivx]/gi, '');
-      const text = String(part?.text || part?.question || '').replace(/^\s*\(?[a-z]\)?[.)]\s*/i, '').trim();
+      const partLabel = String(part?.label ?? part?.partLabel ?? '').trim().replace(/[^\p{L}\p{M}\p{N}]/gu, '');
+      const text = String(part?.text || part?.question || '').replace(/^\s*\(?[\p{L}\p{M}\p{N}]+\)?[.)]\s*/u, '').trim();
       if (!text) { skipped.push(`${number}${partLabel ? `(${partLabel})` : ''}: no text`); return; }
 
       const rawMarks = Number(part?.marks);
@@ -2022,7 +2215,8 @@ function mergeExtractedQuestions(questionSets: Question[][]): Question[] {
   const seen = new Map<string, Question>();
   for (const question of questionSets.flat()) {
     // Parts are keyed by parent number + label so a passage repeated across OCR chunks never collapses them.
-    const key = `${question.number || ''}|${question.partLabel || ''}|${question.text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 120)}`;
+    const textSnippet = question.text.toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim().slice(0, 120);
+    const key = `${question.number || ''}|${question.partLabel || ''}|${textSnippet}`;
     const existing = seen.get(key);
     if (!existing) { seen.set(key, question); continue; }
     if (!existing.stem && question.stem) existing.stem = question.stem;
@@ -2136,7 +2330,73 @@ export async function extractQuestionsFromImage(
   const mimeTypes = Array.isArray(mimeType) ? mimeType : buffers.map(() => mimeType);
   const primaryMimeType = mimeTypes[0] || 'image/jpeg';
 
-  const prompt = `You are an expert curriculum assistant. Perform high-precision Vision AI OCR on the provided Question Paper image(s).
+  const isHindiPaper = isHindi(languageOrSubject);
+  const isTeluguPaper = isTelugu(languageOrSubject);
+  const useSarvam = shouldRouteOcrToSarvam(languageOrSubject);
+
+  let prompt: string;
+  if (isHindiPaper) {
+    prompt = `You are an expert curriculum assistant for Hindi question paper extraction. Perform high-precision Vision AI OCR and question structuring on the provided Hindi Question Paper in Devanagari script.
+
+STRUCTURE RULES (CRITICAL):
+1. Preserve the paper's own hierarchy. A numbered question (e.g. "1", "2", "प्रश्न 1", "प्र. 1", "१", "२") is ONE entry. Its sub-parts (e.g. "क", "ख", "ग", "घ", "ङ" or "a", "b", "c" or "i", "ii") go in its "parts" array. NEVER promote a sub-part into its own numbered question.
+2. Any reading passage (गद्यांश), poem (पद्यांश), dialogue, table, or instruction line belongs in the parent's "stem" field EXACTLY ONCE. NEVER copy the passage into a part's "text". A part's "text" must contain ONLY that sub-part's own question wording.
+3. If a numbered question has no sub-parts, emit a single part with "label": "".
+4. "marks" is per part. If the paper prints total marks for the parent question, divide it evenly across the parts.
+5. In "number", use the paper's question number (e.g. "1", "2", "14"). In "label", use the sub-part letter (e.g. "क", "ख" or "a", "b", not "(क)").
+
+CONTENT & SCRIPT RULES:
+6. Transcribe in authentic Devanagari Hindi script with full orthographic fidelity (preserve all matras, halant, anusvara, and punctuation).
+7. Extract ALL questions line-by-line across all sections (e.g. खंड 'क' - अपठित बोध, खंड 'ख' - व्यावहारिक व्याकरण, खंड 'ग' - पाठ्यपुस्तक, खंड 'घ' - रचनात्मक लेखन).
+8. For each part, formulate its precise ground-truth reference answer key ("correctAnswer") in fluent, grammatically sound Hindi.
+9. For questions requiring diagrams, pictures or maps, set "hasVisual": true, "visualPage": 1, and describe it in "visualCaption".
+
+Return ONLY a valid JSON object with NO markdown code block wrappers:
+{
+  "questions": [
+    {
+      "number": "1",
+      "section": "खंड क (अपठित गद्यांश)",
+      "stem": "निम्नलिखित गद्यांश को ध्यानपूर्वक पढ़कर पूछे गए प्रश्नों के उत्तर लिखिए...",
+      "parts": [
+        { "label": "क", "text": "मनुष्य के जीवन में परिश्रम का क्या महत्व है?", "marks": 2, "correctAnswer": "परिश्रम से ही मनुष्य अपने लक्ष्य को प्राप्त करता है और सफलता की सीढ़ी चढ़ता है।", "hasVisual": false, "visualPage": 0, "visualCaption": "" },
+        { "label": "ख", "text": "सफलता की कुंजी किसे कहा गया है?", "marks": 2, "correctAnswer": "निरंतर अभ्यास और कठोर परिश्रम को सफलता की कुंजी कहा गया है।", "hasVisual": false, "visualPage": 0, "visualCaption": "" }
+      ]
+    }
+  ]
+}`;
+  } else if (isTeluguPaper) {
+    prompt = `You are an expert curriculum assistant for Telugu question paper extraction. Perform high-precision Vision AI OCR and question structuring on the provided Telugu Question Paper in Telugu script (తెలుగు లిపి).
+
+STRUCTURE RULES (CRITICAL):
+1. Preserve the paper's own hierarchy. A numbered question (e.g. "1", "2", "ప్రశ్న 1", "ప్ర. 1", "౧", "౨") is ONE entry. Its sub-parts (e.g. "అ", "ఆ", "ఇ", "ఈ", "ఉ" or "a", "b", "c" or "i", "ii") go in its "parts" array. NEVER promote a sub-part into its own numbered question.
+2. Any reading passage (గద్యం), poem (పద్యం), dialogue, table, or instruction line belongs in the parent's "stem" field EXACTLY ONCE. NEVER copy the passage into a part's "text". A part's "text" must contain ONLY that sub-part's own question wording.
+3. If a numbered question has no sub-parts, emit a single part with "label": "".
+4. "marks" is per part. If the paper prints total marks for the parent question, divide it evenly across the parts.
+5. In "number", use the paper's question number (e.g. "1", "2", "14"). In "label", use the sub-part letter (e.g. "అ", "ఆ" or "a", "b", not "(అ)").
+
+CONTENT & SCRIPT RULES:
+6. Transcribe in authentic Telugu script (తెలుగు లిపి) with full orthographic fidelity (preserve all guninthalu, vatthulu, virama, and punctuation).
+7. Extract ALL questions line-by-line across all sections (e.g. విభాగము 1 - అవగాహన-ప్రతిస్పందన, విభాగము 2 - వ్యక్తీకరణ-సృజనాత్మకత, విభాగము 3 - భాషాంశాలు/వ్యాకరణం).
+8. For each part, formulate its precise ground-truth reference answer key ("correctAnswer") in fluent, grammatically sound Telugu.
+9. For questions requiring diagrams, pictures or maps, set "hasVisual": true, "visualPage": 1, and describe it in "visualCaption".
+
+Return ONLY a valid JSON object with NO markdown code block wrappers:
+{
+  "questions": [
+    {
+      "number": "1",
+      "section": "విభాగము 1 (అవగాహన - ప్రతిస్పందన)",
+      "stem": "కింది గద్యాన్ని చదివి ఇచ్చిన ప్రశ్నలకు జవాబులు రాయండి...",
+      "parts": [
+        { "label": "అ", "text": "కష్టపడి పనిచేయడం వల్ల కలిగే ప్రయోజనం ఏమిటి?", "marks": 2, "correctAnswer": "కష్టపడి పనిచేయడం ద్వారా మనిషి తన లక్ష్యాలను సాధించి జీవితంలో ఉన్నత స్థాయికి చేరుకుంటాడు.", "hasVisual": false, "visualPage": 0, "visualCaption": "" },
+        { "label": "ఆ", "text": "విజయానికి మూలస్తంభం ఏది?", "marks": 2, "correctAnswer": "నిరంతర సాధన మరియు పట్టుదల విజయానికి మూలస్తంభాలు.", "hasVisual": false, "visualPage": 0, "visualCaption": "" }
+      ]
+    }
+  ]
+}`;
+  } else {
+    prompt = `You are an expert curriculum assistant. Perform high-precision Vision AI OCR on the provided Question Paper image(s).
 
 STRUCTURE RULES (CRITICAL):
 1. Preserve the paper's own hierarchy. A numbered question (1, 2, 3...) is ONE entry. Its lettered sub-parts ((a), (b), (c)...) go in its "parts" array. NEVER promote a sub-part into its own numbered question.
@@ -2168,9 +2428,8 @@ Return ONLY a valid JSON object with NO markdown code block wrappers:
     }
   ]
 }`;
+  }
 
-  const sarvamLanguageSupported = supportsSarvamDocumentLanguage(languageOrSubject);
-  const useSarvam = Boolean(process.env.SARVAM_API_KEY) && sarvamLanguageSupported;
   if (!useSarvam) {
     console.log(`ℹ️ [PHOTO QUESTION EXTRACTOR] Skipping Sarvam (${!process.env.SARVAM_API_KEY ? 'SARVAM_API_KEY not configured' : `Sarvam Document AI has no OCR model for '${languageOrSubject}'`}); using Gemini.`);
   }

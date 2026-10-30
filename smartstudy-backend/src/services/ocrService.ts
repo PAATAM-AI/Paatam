@@ -1,5 +1,5 @@
 import { callGemini36Api, getConfiguredGeminiModel } from './aiService.js';
-import { performSarvamVisionOcr, supportsSarvamDocumentLanguage } from './sarvamService.js';
+import { performSarvamVisionOcr, shouldRouteOcrToSarvam, isHindi, isTelugu, isHindiOrTelugu } from './sarvamService.js';
 
 export interface OcrResult {
   ocrText: string;
@@ -7,8 +7,11 @@ export interface OcrResult {
   langCode: string;
 }
 
-function appLanguageCode(languageName: string): string {
-  return languageName.replace(/[^a-z]/gi, '').slice(0, 3).toUpperCase() || 'UNK';
+function appLanguageCode(languageName?: string, subject?: string): string {
+  if (isHindi(languageName) || isHindi(subject)) return 'HIN';
+  if (isTelugu(languageName) || isTelugu(subject)) return 'TEL';
+  const clean = (languageName || subject || '').replace(/[^a-z]/gi, '').slice(0, 3).toUpperCase();
+  return clean || 'UNK';
 }
 
 export async function performOcrPages(
@@ -19,11 +22,13 @@ export async function performOcrPages(
 ): Promise<OcrResult> {
   if (buffers.length === 0) throw new Error('No answer-sheet pages were provided for OCR.');
 
-  const langCode = appLanguageCode(languageName);
+  const effectiveLang = isHindiOrTelugu(languageName) ? languageName : (isHindiOrTelugu(subject) ? subject! : languageName);
+  const langCode = appLanguageCode(languageName, subject);
 
-  if (process.env.SARVAM_API_KEY && supportsSarvamDocumentLanguage(languageName)) {
+  if (shouldRouteOcrToSarvam(languageName, subject)) {
     try {
-      const transcription = await performSarvamVisionOcr(buffers, buffers.map((_, index) => mimeTypes[index] || 'image/jpeg'), languageName);
+      console.log(`🇮🇳 [OCR AGENT] Routing multi-page OCR through Sarvam DocAI (Lang: ${effectiveLang}, Code: ${langCode}, Pages: ${buffers.length})...`);
+      const transcription = await performSarvamVisionOcr(buffers, buffers.map((_, index) => mimeTypes[index] || 'image/jpeg'), effectiveLang);
       if (transcription?.trim()) {
         console.log(`✅ [OCR SUCCESS] Extracted ${transcription.trim().length} characters from ${buffers.length} page(s) via Sarvam`);
         return { ocrText: transcription.trim(), confidence: 0.98, langCode };
@@ -68,7 +73,7 @@ CRITICAL TRANSCRIBING RULES:
 }
 
 /**
- * Multilingual Vision OCR Service powered by Google Gemini 3.6
+ * Multilingual Vision OCR Service powered by Google Gemini 3.6 & Sarvam Document AI
  */
 export async function performOcr(
   imageSource: string | Buffer,
@@ -76,17 +81,18 @@ export async function performOcr(
   mimeType: string = 'image/jpeg',
   subject?: string
 ): Promise<OcrResult> {
-  const langCode = appLanguageCode(languageName);
+  const effectiveLang = isHindiOrTelugu(languageName) ? languageName : (isHindiOrTelugu(subject) ? subject! : languageName);
+  const langCode = appLanguageCode(languageName, subject);
 
   let buffer: Buffer | null = null;
   if (Buffer.isBuffer(imageSource) && imageSource.length > 0) {
     buffer = imageSource;
   }
 
-  const sarvamAvailable = Boolean(process.env.SARVAM_API_KEY) && supportsSarvamDocumentLanguage(languageName);
+  const sarvamAvailable = shouldRouteOcrToSarvam(languageName, subject);
   const ocrModel = sarvamAvailable ? 'sarvam' : getConfiguredGeminiModel();
 
-  console.log(`🔍 [OCR AGENT] Target Engine: "${ocrModel.toUpperCase()}" (Lang: ${languageName}, Code: ${langCode})`);
+  console.log(`🔍 [OCR AGENT] Target Engine: "${ocrModel.toUpperCase()}" (Lang: ${effectiveLang}, Code: ${langCode})`);
 
   if (buffer) {
     try {
@@ -109,7 +115,7 @@ CRITICAL TRANSCRIBING RULES:
       let transcribed: string | null = null;
       if (ocrModel === 'sarvam') {
         try {
-          transcribed = await performSarvamVisionOcr(buffer, mimeType, languageName);
+          transcribed = await performSarvamVisionOcr(buffer, mimeType, effectiveLang);
         } catch (sarvamError) {
           console.warn('⚠️ [OCR SERVICE] Sarvam OCR failed; using Gemini fallback:', sarvamError);
           transcribed = await callGemini36Api(prompt, buffer, mimeType, 3, getConfiguredGeminiModel());

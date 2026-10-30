@@ -81,7 +81,7 @@ export async function callSarvamChatApi(
         messages: [{ role: 'user', content: prompt }],
         temperature: options.temperature ?? 0.2,
         ...(options.seed !== undefined ? { seed: options.seed } : {}),
-        reasoning_effort: reasoningEffort,
+        ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
         max_tokens: maxTokens,
         ...(options.responseFormat ? { response_format: options.responseFormat } : {})
       })
@@ -124,19 +124,71 @@ const SARVAM_INDIC_LANGUAGE_CODES: Record<string, string> = {
   marathi: 'mr-IN', gujarati: 'gu-IN', kannada: 'kn-IN', malayalam: 'ml-IN', odia: 'od-IN',
   punjabi: 'pa-IN', assamese: 'as-IN', bodo: 'brx-IN', dogri: 'doi-IN', kashmiri: 'ks-IN',
   konkani: 'kok-IN', maithili: 'mai-IN', manipuri: 'mni-IN', nepali: 'ne-IN', sanskrit: 'sa-IN',
-  santali: 'sat-IN', sindhi: 'sd-IN', urdu: 'ur-IN'
+  santali: 'sat-IN', sindhi: 'sd-IN', urdu: 'ur-IN', english: 'en-IN'
 };
 
-export function sarvamDocumentLanguageCode(languageName: string): string | null {
+const COMMON_SUBJECT_TO_LANGUAGE_CODE: Record<string, string> = {
+  physics: 'en-IN',
+  chemistry: 'en-IN',
+  biology: 'en-IN',
+  psychology: 'en-IN',
+  math: 'en-IN',
+  maths: 'en-IN',
+  mathematics: 'en-IN',
+  science: 'en-IN',
+  social: 'en-IN',
+  history: 'en-IN',
+  geography: 'en-IN',
+  economics: 'en-IN',
+  english: 'en-IN'
+};
+
+export function isHindi(languageOrSubject?: string): boolean {
+  if (!languageOrSubject) return false;
+  const s = languageOrSubject.trim().toLowerCase();
+  return /hindi|हिन्दी|हिंदी|\bhin\b|\bhi\b|hi-in|devanagari/i.test(s);
+}
+
+export function isTelugu(languageOrSubject?: string): boolean {
+  if (!languageOrSubject) return false;
+  const s = languageOrSubject.trim().toLowerCase();
+  return /telugu|తెలుగు|\btel\b|\bte\b|te-in/i.test(s);
+}
+
+export function isHindiOrTelugu(language?: string, subject?: string): boolean {
+  return isHindi(language) || isHindi(subject) || isTelugu(language) || isTelugu(subject);
+}
+
+export function sarvamDocumentLanguageCode(languageName?: string): string | null {
   if (!languageName) return null;
-  const normalized = languageName.toLowerCase();
+  if (isHindi(languageName)) return 'hi-IN';
+  if (isTelugu(languageName)) return 'te-IN';
+  const normalized = languageName.trim().toLowerCase();
+  if (COMMON_SUBJECT_TO_LANGUAGE_CODE[normalized]) {
+    return COMMON_SUBJECT_TO_LANGUAGE_CODE[normalized];
+  }
   const language = Object.keys(SARVAM_INDIC_LANGUAGE_CODES).find((name) => normalized.includes(name));
   if (language) return SARVAM_INDIC_LANGUAGE_CODES[language];
   return null;
 }
 
-export function supportsSarvamDocumentLanguage(languageName: string): boolean {
-  return sarvamDocumentLanguageCode(languageName) !== null;
+export function supportsSarvamDocumentLanguage(languageName?: string, subject?: string): boolean {
+  if (languageName && sarvamDocumentLanguageCode(languageName) !== null) return true;
+  if (subject && sarvamDocumentLanguageCode(subject) !== null) return true;
+  return false;
+}
+
+export function shouldRouteOcrToSarvam(languageName?: string, subject?: string): boolean {
+  if (!process.env.SARVAM_API_KEY) return false;
+  // Primary mandate: Always route Hindi and Telugu to Sarvam Vision
+  if (isHindiOrTelugu(languageName, subject)) return true;
+  // If explicitly configured to use Sarvam as primary provider
+  if (process.env.PRIMARY_AI_PROVIDER?.toLowerCase() === 'sarvam') {
+    return supportsSarvamDocumentLanguage(languageName, subject);
+  }
+  // Other Indic regional languages route to Sarvam
+  const combined = `${languageName || ''} ${subject || ''}`.toLowerCase();
+  return ['bengali', 'tamil', 'marathi', 'gujarati', 'kannada', 'malayalam', 'odia', 'punjabi', 'urdu'].some((lang) => combined.includes(lang));
 }
 
 export async function performSarvamVisionOcrChunks(
@@ -209,6 +261,7 @@ export async function performSarvamVisionOcrChunks(
     const formData = new FormData();
     formData.append('file', new Blob([new Uint8Array(document.buffer)], { type: document.mimeType }), document.name);
     formData.append('language', langCode);
+    formData.append('language_code', langCode);
     formData.append('output_format', 'md');
 
     console.log(`🇮🇳 [SARVAM VISION OCR] Creating DocAI job ${documentIndex + 1}/${documents.length} (pages ${firstPage}-${lastPage}, ${document.buffer.length} bytes, Lang: ${langCode})...`);

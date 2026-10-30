@@ -39,16 +39,27 @@ export class GeminiProvider implements AIProvider {
       }
     }
 
+    const isJsonExpected = request.responseFormat === 'json' ||
+      request.taskType === 'exam_generation' ||
+      request.taskType === 'metadata_extraction' ||
+      (request.responseFormat !== 'text' && /json/i.test(request.prompt.slice(-500)));
+
+    const generationConfig: any = {
+      maxOutputTokens: request.maxOutputTokens || 32768,
+      temperature: typeof request.temperature === 'number' ? request.temperature : 0.2,
+      // Zero thinking budget eliminates wasted reasoning tokens and latency spikes for structured tasks
+      thinkingConfig: {
+        thinkingBudget: 0
+      }
+    };
+
+    if (isJsonExpected) {
+      generationConfig.responseMimeType = 'application/json';
+    }
+
     const payload: any = {
       contents: [{ parts }],
-      generationConfig: {
-        maxOutputTokens: request.maxOutputTokens || 32768,
-        temperature: typeof request.temperature === 'number' ? request.temperature : 0.2,
-        // Zero thinking budget eliminates wasted reasoning tokens and latency spikes for structured tasks
-        thinkingConfig: {
-          thinkingBudget: 0
-        }
-      }
+      generationConfig
     };
 
     if (request.systemInstruction) {
