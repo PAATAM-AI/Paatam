@@ -12,43 +12,43 @@ interface AgentPipelineStatusProps {
 }
 
 export default function AgentPipelineStatus({ currentStep = 6, subData }: AgentPipelineStatusProps) {
+  const subjectLabel = subData?.subject || 'the selected subject';
+
   const steps = [
     {
       num: 1,
       name: 'Vision Agent',
-      desc: subData?.imageName ? `${subData.imageName} ingested` : 'Handwritten scan & image preprocessing',
+      desc: 'Cleans and prepares scanned pages for OCR.',
       icon: Eye
     },
     {
       num: 2,
       name: 'OCR + Structure Agent',
-      desc: subData?.blocksTranscribed 
-        ? `${subData.blocksTranscribed} answer blocks transcribed` 
-        : 'Transcribes cursive handwriting & maps questions',
+      desc: 'Reads handwriting and maps each answer block.',
       icon: FileCode2
     },
     {
       num: 3,
       name: 'Answer Verification Agent',
-      desc: 'Answers checked against rubric & answer key',
+      desc: 'Checks each response against key and rubric.',
       icon: CheckCheck
     },
     {
       num: 4,
       name: 'Subject Grading Agent',
-      desc: subData?.subject ? `Graded from ${subData.subject} knowledge base` : 'Evaluates conceptual accuracy & partial marks',
+      desc: `Applies grading rules and grades.`,
       icon: GraduationCap
     },
     {
       num: 5,
       name: 'QA Agent',
-      desc: subData?.qaNote || 'QA verification: Checked grading consistency & hallucinations',
+      desc: 'Validates score consistency and flags risky outputs.',
       icon: ShieldAlert
     },
     {
       num: 6,
       name: 'Teacher Review',
-      desc: subData?.status === 'approved' ? 'Grades approved by teacher' : 'Awaiting teacher approval',
+      desc: subData?.status === 'approved' ? 'Teacher approved final marks.' : 'Waiting for teacher review and final approval.',
       icon: UserCheck
     }
   ];

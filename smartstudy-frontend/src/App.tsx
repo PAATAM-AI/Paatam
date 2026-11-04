@@ -18,6 +18,7 @@ import Analytics from './pages/Analytics';
 import Teachers from './pages/Teachers';
 import StudentsRoster from './pages/StudentsRoster';
 import Campuses from './pages/Campuses';
+import CampusOverview from './pages/CampusOverview';
 import { AuthProvider } from './context/AuthContext';
 import { API_BASE_URL } from './config/api';
 
@@ -93,6 +94,7 @@ function AppLayout({ onClearDb }: { onClearDb: () => void }) {
           <Route path="/teachers" element={<Teachers />} />
           <Route path="/students" element={<StudentsRoster />} />
           <Route path="/campuses" element={<Campuses />} />
+          <Route path="/campus-overview" element={<CampusOverview />} />
           <Route path="/papers/:assignmentId" element={<PaperDetail />} />
           <Route path="/upload" element={<ScanGrade />} />
           <Route path="/submissions" element={<ReviewQueue />} />

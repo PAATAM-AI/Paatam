@@ -4,7 +4,6 @@ import {
   BookOpen,
   Sparkles,
   GraduationCap,
-  Trash2,
   CheckCircle2,
   Layers,
   BarChart3,
@@ -13,14 +12,17 @@ import {
   UserCheck
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import paatamLogo from '../assets/paatam-logo-white-4000.png';
 
 interface SidebarProps {
   onClearDb?: () => void;
 }
 
-export default function Sidebar({ onClearDb }: SidebarProps) {
+export default function Sidebar({ onClearDb: _onClearDb }: SidebarProps) {
   const location = useLocation();
   const { role } = useAuth();
+  const isDean = role === 'ADMIN';
+  const isTeacher = role === 'TEACHER';
 
   const isActive = (path: string, tab?: string) => {
     if (tab) {
@@ -39,7 +41,7 @@ export default function Sidebar({ onClearDb }: SidebarProps) {
         {/* Brand Header */}
         <div className="sidebar-brand">
           <div className="sidebar-logo-icon">
-            <img src="/logo.jpg" alt="Paatam AI logo" className="sidebar-logo-image" />
+            <img src={paatamLogo} alt="Paatam AI logo" className="sidebar-logo-image" />
           </div>
           <div>
             <p className="sidebar-brand-name">PAATAM.AI</p>
@@ -49,8 +51,19 @@ export default function Sidebar({ onClearDb }: SidebarProps) {
 
         {/* Main Navigation (Role-Based) */}
         <nav className="sidebar-nav">
-          {/* 1. Overview (Admin & Teacher) */}
-          {role !== 'STUDENT' && (
+          {/* 1. Campus Overview (Dean placeholder tab) */}
+          {isDean && (
+            <NavLink
+              to="/campus-overview"
+              className={({ isActive: isNavActive }) => `sidebar-nav-link ${isNavActive ? 'active' : ''}`}
+            >
+              <Building2 className="size-4 sidebar-nav-icon shrink-0" />
+              <span>Campus Overview</span>
+            </NavLink>
+          )}
+
+          {/* 2. Overview (Teacher only) */}
+          {isTeacher && (
             <NavLink
               to="/"
               end
@@ -61,7 +74,7 @@ export default function Sidebar({ onClearDb }: SidebarProps) {
             </NavLink>
           )}
 
-          {/* 2. Analytics (All Roles - personalized for Student) */}
+          {/* 3. Analytics (All Roles - personalized for Student) */}
           <NavLink
             to="/analytics"
             className={({ isActive: isNavActive }) => `sidebar-nav-link ${isNavActive ? 'active' : ''}`}
@@ -70,19 +83,8 @@ export default function Sidebar({ onClearDb }: SidebarProps) {
             <span>{role === 'STUDENT' ? 'My Progress Analytics' : 'Student Analytics'}</span>
           </NavLink>
 
-          {/* 3. Campuses & Branches (Admin Only) */}
-          {role === 'ADMIN' && (
-            <NavLink
-              to="/campuses"
-              className={({ isActive: isNavActive }) => `sidebar-nav-link ${isNavActive ? 'active' : ''}`}
-            >
-              <Building2 className="size-4 sidebar-nav-icon shrink-0" />
-              <span>Campuses & Branches</span>
-            </NavLink>
-          )}
-
-          {/* 4. Faculty & Staff (Admin Only) */}
-          {role === 'ADMIN' && (
+          {/* 4. Faculty & Staff (Dean only) */}
+          {isDean && (
             <NavLink
               to="/teachers"
               className={({ isActive: isNavActive }) => `sidebar-nav-link ${isNavActive ? 'active' : ''}`}
@@ -103,8 +105,8 @@ export default function Sidebar({ onClearDb }: SidebarProps) {
             </NavLink>
           )}
 
-          {/* 6. Student Roster & Bulk CSV (Admin & Teacher) */}
-          {role !== 'STUDENT' && (
+          {/* 6. Student Roster & Bulk CSV (Dean only) */}
+          {isDean && (
             <NavLink
               to="/students"
               className={({ isActive: isNavActive }) => `sidebar-nav-link ${isNavActive ? 'active' : ''}`}
@@ -114,8 +116,8 @@ export default function Sidebar({ onClearDb }: SidebarProps) {
             </NavLink>
           )}
 
-          {/* 7. Knowledge Base (Admin & Teacher) */}
-          {role !== 'STUDENT' && (
+          {/* 7. Knowledge Base (Teacher only) */}
+          {isTeacher && (
             <NavLink
               to="/knowledge"
               className={({ isActive: isNavActive }) => `sidebar-nav-link ${isNavActive || isActive('/', 'knowledge') ? 'active' : ''}`}
@@ -125,8 +127,8 @@ export default function Sidebar({ onClearDb }: SidebarProps) {
             </NavLink>
           )}
 
-          {/* 8. Exam Generator (Admin & Teacher) */}
-          {role !== 'STUDENT' && (
+          {/* 8. Exam Generator (Teacher only) */}
+          {isTeacher && (
             <NavLink
               to="/generator"
               className={({ isActive: isNavActive }) => `sidebar-nav-link ${isNavActive || isActive('/', 'generator') ? 'active' : ''}`}
@@ -159,26 +161,6 @@ export default function Sidebar({ onClearDb }: SidebarProps) {
               <CheckCircle2 className="size-3.5 text-emerald-400" />
               <span>6 AI Agents Active</span>
             </div>
-            {onClearDb && (
-              <button
-                onClick={onClearDb}
-                title="Reset all database submissions"
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#64748B',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: '0.3rem',
-                  borderRadius: '0.375rem'
-                }}
-                onMouseOver={(e) => (e.currentTarget.style.color = '#EF4444')}
-                onMouseOut={(e) => (e.currentTarget.style.color = '#64748B')}
-              >
-                <Trash2 className="size-3.5" />
-              </button>
-            )}
           </div>
         )}
       </aside>

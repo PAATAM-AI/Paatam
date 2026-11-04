@@ -42,8 +42,8 @@ interface AuthContextType {
 export const DEMO_PROFILES: Record<UserRole, UserProfile> = {
   ADMIN: {
     id: 'admin-dean-1',
-    name: 'Dr. Ramesh Sundaram',
-    email: 'dean.ramesh@paatam.edu',
+    name: 'Dr. Deepak Kumar',
+    email: 'deepak.dev@paatam.in',
     role: 'ADMIN',
     title: 'Dean & Principal (Executive Admin)',
     branchId: 'branch-main',
@@ -52,7 +52,7 @@ export const DEMO_PROFILES: Record<UserRole, UserProfile> = {
   TEACHER: {
     id: 'teacher-101',
     name: 'Mohit Yadav',
-    email: 'mohit.yadav@paatam.edu',
+    email: 'mohit.dev@paatam.in',
     role: 'TEACHER',
     title: 'Teacher',
     branchId: 'branch-main',
@@ -77,7 +77,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
     const saved = localStorage.getItem('paatam_user');
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
+      try {
+        const parsed = JSON.parse(saved) as UserProfile;
+        if (parsed?.id === DEMO_PROFILES.ADMIN.id || parsed?.role === 'ADMIN') {
+          return DEMO_PROFILES.ADMIN;
+        }
+        if (parsed?.id === DEMO_PROFILES.TEACHER.id || parsed?.role === 'TEACHER') {
+          return { ...DEMO_PROFILES.TEACHER, branchId: parsed.branchId || DEMO_PROFILES.TEACHER.branchId, branchName: parsed.branchName || DEMO_PROFILES.TEACHER.branchName };
+        }
+        if (parsed?.id === DEMO_PROFILES.STUDENT.id || parsed?.role === 'STUDENT') {
+          return { ...DEMO_PROFILES.STUDENT, branchId: parsed.branchId || DEMO_PROFILES.STUDENT.branchId, branchName: parsed.branchName || DEMO_PROFILES.STUDENT.branchName };
+        }
+        return parsed;
+      } catch (e) {}
     }
     return DEMO_PROFILES.ADMIN;
   });
@@ -117,7 +129,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
-    switchRole('ADMIN');
+    setCurrentUser(DEMO_PROFILES.ADMIN);
+    localStorage.removeItem('paatam_user');
   };
 
   const isRole = (roles: UserRole[]) => {

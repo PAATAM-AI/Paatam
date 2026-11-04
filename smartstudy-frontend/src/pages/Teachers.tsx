@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Users, Plus, BookOpen, Trash2, Mail, Phone, X } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
+import { useAuth } from '../context/AuthContext';
 
 interface TeacherItem {
   id: string;
@@ -17,7 +18,48 @@ interface SubjectItem {
   name: string;
 }
 
+const MOCK_FACULTY: TeacherItem[] = [
+  {
+    id: 'mock-fac-1',
+    name: 'Ananya Rao',
+    teacher_id: 'FAC-201',
+    contact_email: 'ananya.rao@bellwether.edu',
+    contact_mobile: '+91 9000011201',
+    branches: { id: 'branch-main', name: 'Hyderabad Central Campus' },
+    teacher_subject: [{ id: 'm1', subject_id: 'physics', subjects: { id: 'physics', name: 'Physics' } }]
+  },
+  {
+    id: 'mock-fac-2',
+    name: 'Raghav Mehta',
+    teacher_id: 'FAC-202',
+    contact_email: 'raghav.mehta@bellwether.edu',
+    contact_mobile: '+91 9000011202',
+    branches: { id: 'branch-main', name: 'Hyderabad Central Campus' },
+    teacher_subject: [{ id: 'm2', subject_id: 'chemistry', subjects: { id: 'chemistry', name: 'Chemistry' } }]
+  },
+  {
+    id: 'mock-fac-3',
+    name: 'Nisha Verma',
+    teacher_id: 'FAC-203',
+    contact_email: 'nisha.verma@bellwether.edu',
+    contact_mobile: '+91 9000011203',
+    branches: { id: 'branch-main', name: 'Hyderabad Central Campus' },
+    teacher_subject: [{ id: 'm3', subject_id: 'psychology', subjects: { id: 'psychology', name: 'Psychology' } }]
+  },
+  {
+    id: 'mock-fac-4',
+    name: 'Imran Siddiqui',
+    teacher_id: 'FAC-204',
+    contact_email: 'imran.siddiqui@bellwether.edu',
+    contact_mobile: '+91 9000011204',
+    branches: { id: 'branch-main', name: 'Hyderabad Central Campus' },
+    teacher_subject: [{ id: 'm4', subject_id: 'mathematics', subjects: { id: 'mathematics', name: 'Mathematics' } }]
+  }
+];
+
 export default function Teachers() {
+  const { role } = useAuth();
+  const isDeanView = role === 'ADMIN';
   const [teachers, setTeachers] = useState<TeacherItem[]>([]);
   const [subjects, setSubjects] = useState<SubjectItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -36,6 +78,12 @@ export default function Teachers() {
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
 
   const fetchTeachers = () => {
+    if (isDeanView) {
+      setTeachers(MOCK_FACULTY);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     fetch(`${API_BASE_URL}/api/teachers`)
       .then(res => res.json())
@@ -57,8 +105,10 @@ export default function Teachers() {
 
   useEffect(() => {
     fetchTeachers();
-    fetchSubjects();
-  }, []);
+    if (!isDeanView) {
+      fetchSubjects();
+    }
+  }, [isDeanView]);
 
   const handleAddTeacher = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,22 +199,24 @@ export default function Teachers() {
         <div className="m-card" style={{ marginBottom: '1.25rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
             <div>
-              <h3 className="m-card-title">Staff Management</h3>
+              <h3 className="m-card-title">{isDeanView ? 'Mock Faculty Directory' : 'Staff Management'}</h3>
               <p style={{ fontSize: '0.8125rem', color: '#64748B', margin: '0.2rem 0 0 0' }}>
                 {teachers.length} faculty member(s) registered
               </p>
             </div>
 
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button className="btn btn-secondary" onClick={() => setIsAllocModalOpen(true)}>
-                <BookOpen className="size-4" />
-                <span>Assign Subject</span>
-              </button>
-              <button className="btn btn-primary" onClick={() => setIsAddModalOpen(true)}>
-                <Plus className="size-4" />
-                <span>Add Teacher</span>
-              </button>
-            </div>
+            {!isDeanView && (
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button className="btn btn-secondary" onClick={() => setIsAllocModalOpen(true)}>
+                  <BookOpen className="size-4" />
+                  <span>Assign Subject</span>
+                </button>
+                <button className="btn btn-primary" onClick={() => setIsAddModalOpen(true)}>
+                  <Plus className="size-4" />
+                  <span>Add Teacher</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -224,9 +276,11 @@ export default function Teachers() {
                             t.teacher_subject.map(ts => (
                               <span key={ts.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.2rem 0.5rem', background: '#EFF6FF', color: '#1E40AF', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600 }}>
                                 <span>{ts.subjects?.name || 'Subject'}</span>
-                                <button type="button" onClick={() => handleRemoveAllocation(ts.id)} style={{ background: 'transparent', border: 'none', color: '#94A3B8', cursor: 'pointer', display: 'flex' }}>
-                                  <Trash2 className="size-3 hover:text-red-600" />
-                                </button>
+                                {!isDeanView && (
+                                  <button type="button" onClick={() => handleRemoveAllocation(ts.id)} style={{ background: 'transparent', border: 'none', color: '#94A3B8', cursor: 'pointer', display: 'flex' }}>
+                                    <Trash2 className="size-3 hover:text-red-600" />
+                                  </button>
+                                )}
                               </span>
                             ))
                           )}
@@ -242,7 +296,7 @@ export default function Teachers() {
       </div>
 
       {/* Add Teacher Modal */}
-      {isAddModalOpen && (
+      {!isDeanView && isAddModalOpen && (
         <div className="modal-backdrop animate-fade-in" style={{
           position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem'
@@ -280,7 +334,7 @@ export default function Teachers() {
       )}
 
       {/* Allocate Subject Modal */}
-      {isAllocModalOpen && (
+      {!isDeanView && isAllocModalOpen && (
         <div className="modal-backdrop animate-fade-in" style={{
           position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem'

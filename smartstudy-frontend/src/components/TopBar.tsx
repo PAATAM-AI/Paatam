@@ -4,31 +4,21 @@ import {
   Search,
   Bell,
   ChevronDown,
-  ShieldCheck,
-  Users,
-  GraduationCap,
-  Building2,
-  LogIn,
   LogOut,
-  Check,
-  FileCheck2,
-  Trash2
+  FileCheck2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import schoolLogo from '../assets/OIP.png';
 
 interface TopBarProps {
   onClearDb?: () => void;
 }
 
-export default function TopBar({ onClearDb }: TopBarProps) {
+export default function TopBar({ onClearDb: _onClearDb }: TopBarProps) {
   const navigate = useNavigate();
   const {
     currentUser,
     role,
-    switchRole,
-    branches,
-    currentBranchId,
-    setCurrentBranchId,
     logout
   } = useAuth();
 
@@ -98,16 +88,23 @@ export default function TopBar({ onClearDb }: TopBarProps) {
     },
     {
       id: 'n3',
-      title: 'Parent WhatsApp Alerts Sent',
-      desc: '34 homework digest messages delivered via WhatsApp API.',
+      title: 'Faculty Timetable Updated',
+      desc: 'Section schedules were refreshed for the current week.',
       time: '1h ago',
-      path: '/parent'
+      path: '/classes'
     }
   ];
 
   return (
     <header className="app-topbar no-print">
-      {/* Left: Search input */}
+      <div className="topbar-school-block">
+        <img src={schoolLogo} alt="Bellwether school logo" className="topbar-school-logo" />
+        <div className="topbar-school-text">
+          <span className="topbar-school-name">Bellwether International School</span>
+          <span className="topbar-school-meta">Academic Campus · Session 2026-27</span>
+        </div>
+      </div>
+
       <form onSubmit={handleSearchSubmit} className="topbar-search-form">
         <div className="topbar-search-wrapper">
           <Search className="topbar-search-icon" size={17} />
@@ -121,8 +118,9 @@ export default function TopBar({ onClearDb }: TopBarProps) {
         </div>
       </form>
 
-      {/* Right: Notification Bell & User Profile */}
       <div className="topbar-right-group">
+        <div className="topbar-cloud-pill">Cloud Online</div>
+
         {/* Notification Bell */}
         <div className="topbar-relative-container" ref={notificationsRef}>
           <button
@@ -187,7 +185,7 @@ export default function TopBar({ onClearDb }: TopBarProps) {
               setIsProfileOpen(!isProfileOpen);
               setIsNotificationsOpen(false);
             }}
-            title="Switch User Persona or Campus"
+            title="Account settings"
           >
             <div className="topbar-avatar-circle">
               {getInitials(currentUser.name)}
@@ -199,10 +197,9 @@ export default function TopBar({ onClearDb }: TopBarProps) {
             <ChevronDown size={15} className={`topbar-chevron ${isProfileOpen ? 'rotate-180' : ''}`} />
           </button>
 
-          {/* User Profile & Persona Switcher Menu */}
+          {/* User Profile Menu */}
           {isProfileOpen && (
             <div className="topbar-dropdown-menu profile-menu animate-fade-in">
-              {/* User Header Details */}
               <div className="profile-menu-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                   <div className="topbar-avatar-circle large">
@@ -222,123 +219,12 @@ export default function TopBar({ onClearDb }: TopBarProps) {
                     {roleLabel}
                   </span>
                   <span className="branch-tag">
-                    {branches.find(b => b.id === currentBranchId)?.name || 'Central Campus'}
+                    {currentUser.branchName || 'Hyderabad Central Campus'}
                   </span>
                 </div>
               </div>
 
-              {/* Persona Switcher Section */}
-              <div className="profile-menu-section">
-                <div className="section-label">SWITCH ACTIVE PERSONA</div>
-                <div className="persona-toggle-list">
-                  {/* Admin / Dean */}
-                  <button
-                    type="button"
-                    className={`persona-toggle-option ${role === 'ADMIN' ? 'active' : ''}`}
-                    onClick={() => {
-                      switchRole('ADMIN');
-                      setIsProfileOpen(false);
-                    }}
-                  >
-                    <div className="persona-icon-badge admin">
-                      <ShieldCheck size={16} />
-                    </div>
-                    <div style={{ flex: 1, textAlign: 'left' }}>
-                      <div className="persona-name">Dean / Principal</div>
-                      <div className="persona-subtitle">Executive oversight & branches</div>
-                    </div>
-                    {role === 'ADMIN' && <Check size={16} className="text-blue-600 shrink-0" />}
-                  </button>
-
-                  {/* Faculty Teacher */}
-                  <button
-                    type="button"
-                    className={`persona-toggle-option ${role === 'TEACHER' ? 'active' : ''}`}
-                    onClick={() => {
-                      switchRole('TEACHER');
-                      setIsProfileOpen(false);
-                    }}
-                  >
-                    <div className="persona-icon-badge teacher">
-                      <Users size={16} />
-                    </div>
-                    <div style={{ flex: 1, textAlign: 'left' }}>
-                      <div className="persona-name">Faculty Teacher</div>
-                      <div className="persona-subtitle">Grading, papers & rosters</div>
-                    </div>
-                    {role === 'TEACHER' && <Check size={16} className="text-emerald-600 shrink-0" />}
-                  </button>
-
-                  {/* Student Learner */}
-                  <button
-                    type="button"
-                    className={`persona-toggle-option ${role === 'STUDENT' ? 'active' : ''}`}
-                    onClick={() => {
-                      switchRole('STUDENT');
-                      setIsProfileOpen(false);
-                    }}
-                  >
-                    <div className="persona-icon-badge student">
-                      <GraduationCap size={16} />
-                    </div>
-                    <div style={{ flex: 1, textAlign: 'left' }}>
-                      <div className="persona-name">Student Learner</div>
-                      <div className="persona-subtitle">Student Portal & analytics</div>
-                    </div>
-                    {role === 'STUDENT' && <Check size={16} className="text-purple-600 shrink-0" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Campus / Branch Selector */}
-              {role !== 'STUDENT' && branches.length > 0 && (
-                <div className="profile-menu-section">
-                  <div className="section-label">ACTIVE CAMPUS / BRANCH</div>
-                  <div className="campus-select-wrapper">
-                    <Building2 size={14} className="text-slate-400" />
-                    <select
-                      value={currentBranchId}
-                      onChange={(e) => setCurrentBranchId(e.target.value)}
-                      className="topbar-campus-select"
-                    >
-                      {branches.map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {/* Bottom Menu Actions */}
               <div className="profile-menu-footer">
-                <button
-                  type="button"
-                  className="dropdown-action-btn"
-                  onClick={() => {
-                    setIsProfileOpen(false);
-                    navigate('/login');
-                  }}
-                >
-                  <LogIn size={15} />
-                  <span>Institutional Login Page</span>
-                </button>
-
-                {onClearDb && (
-                  <button
-                    type="button"
-                    className="dropdown-action-btn"
-                    onClick={() => {
-                      setIsProfileOpen(false);
-                      onClearDb();
-                    }}
-                  >
-                    <Trash2 size={15} />
-                    <span>Reset Submissions DB</span>
-                  </button>
-                )}
-
                 <button
                   type="button"
                   className="dropdown-action-btn text-destructive"
@@ -349,7 +235,7 @@ export default function TopBar({ onClearDb }: TopBarProps) {
                   }}
                 >
                   <LogOut size={15} />
-                  <span>Sign Out</span>
+                  <span>Logout</span>
                 </button>
               </div>
             </div>
