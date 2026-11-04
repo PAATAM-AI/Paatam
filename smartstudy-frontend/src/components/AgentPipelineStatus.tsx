@@ -12,7 +12,7 @@ interface AgentPipelineStatusProps {
 }
 
 export default function AgentPipelineStatus({ currentStep = 6, subData }: AgentPipelineStatusProps) {
-  const subjectLabel = subData?.subject || 'the selected subject';
+
 
   const steps = [
     {
