@@ -47,17 +47,59 @@ const records: SectionRecord[] = [
   { id: 12, className: 'Class 10', section: 'B', students: 40, score: 63, change: -1, high: 10, moderate: 16, support: 8, risk: 6 },
 ];
 
-const classPerformance = [
-  { name: 'Class 6', score: 76 },
-  { name: 'Class 7', score: 72 },
-  { name: 'Class 8', score: 68 },
-  { name: 'Class 9', score: 64 },
-  { name: 'Class 10', score: 62 },
-  { name: 'Class 11', score: 58 },
-  { name: 'Class 12', score: 60 },
-];
+// Derive class-level performance from the section records instead of maintaining
+// a second, independent set of hardcoded class scores.
+const classPerformance = Array.from(
+  records.reduce((grouped, row) => {
+    const current = grouped.get(row.className) || [];
+    current.push(row);
+    grouped.set(row.className, current);
+    return grouped;
+  }, new Map<string, SectionRecord[]>()).entries()
+).map(([name, rows]) => {
+  const students = rows.reduce((sum, row) => sum + row.students, 0);
+  const weightedScore = rows.reduce((sum, row) => sum + row.score * row.students, 0);
+  return {
+    name,
+    score: students ? Math.round(weightedScore / students) : 0,
+  };
+});
 
 const classNames = classPerformance.map((item) => item.name);
+
+function summarizeRecords(rows: SectionRecord[]) {
+  const totalStudents = rows.reduce((sum, row) => sum + row.students, 0);
+  const weightedScore = rows.reduce((sum, row) => sum + row.score * row.students, 0);
+  const totalSections = rows.length;
+  const groupedClasses = new Map<string, SectionRecord[]>();
+  rows.forEach((row) => {
+    const current = groupedClasses.get(row.className) || [];
+    current.push(row);
+    groupedClasses.set(row.className, current);
+  });
+  const scopedClassPerformance = Array.from(groupedClasses.entries()).map(([name, classRows]) => {
+    const classStudents = classRows.reduce((sum, row) => sum + row.students, 0);
+    const classWeightedScore = classRows.reduce((sum, row) => sum + row.score * row.students, 0);
+    return {
+      name,
+      score: classStudents ? Math.round(classWeightedScore / classStudents) : 0,
+    };
+  });
+  const classCount = scopedClassPerformance.length;
+
+  return {
+    totalClasses: classCount,
+    totalSections,
+    totalStudents,
+    averageScore: totalStudents ? Math.round(weightedScore / totalStudents) : 0,
+    topClass: [...scopedClassPerformance].sort((a, b) => b.score - a.score)[0],
+    classesBelow60: scopedClassPerformance.filter((item) => item.score < 60).length,
+    high: rows.reduce((sum, row) => sum + row.high, 0),
+    moderate: rows.reduce((sum, row) => sum + row.moderate, 0),
+    support: rows.reduce((sum, row) => sum + row.support, 0),
+    risk: rows.reduce((sum, row) => sum + row.risk, 0),
+  };
+}
 
 function Filter({
   label,
@@ -114,7 +156,7 @@ function Metric({
   );
 }
 
-function ClassComparisonChart() {
+function ClassComparisonChart({ data }: { data: { name: string; score: number }[] }) {
   return (
     <div className="cs-comparison-chart">
       <div className="cs-chart-y-axis">
@@ -123,7 +165,7 @@ function ClassComparisonChart() {
         ))}
       </div>
       <div className="cs-comparison-plot">
-        {classPerformance.map((item) => (
+        {data.map((item) => (
           <div className="cs-comparison-column" key={item.name}>
             <strong>{item.score}%</strong>
             <div className="cs-comparison-track">
@@ -140,20 +182,35 @@ function ClassComparisonChart() {
   );
 }
 
-function DistributionChart() {
+function DistributionChart({
+  totalStudents,
+  high,
+  moderate,
+  support,
+  risk,
+}: {
+  totalStudents: number;
+  high: number;
+  moderate: number;
+  support: number;
+  risk: number;
+}) {
+  const percentage = (count: number) =>
+    totalStudents ? Math.round((count / totalStudents) * 100) : 0;
+
   return (
     <div className="cs-distribution">
       <div className="cs-donut">
         <div className="cs-donut-center">
-          <strong>820</strong>
+          <strong>{totalStudents}</strong>
           <span>Students</span>
         </div>
       </div>
       <div className="cs-distribution-legend">
-        <div><i className="high" /><span>≥ 80% (High Performing)</span><strong>320 (39%)</strong></div>
-        <div><i className="moderate" /><span>60% – 79% (Moderate)</span><strong>340 (41%)</strong></div>
-        <div><i className="support" /><span>50% – 59% (Needs Support)</span><strong>110 (13%)</strong></div>
-        <div><i className="risk" /><span>Below 50% (At Risk)</span><strong>50 (6%)</strong></div>
+        <div><i className="high" /><span>≥ 80% (High Performing)</span><strong>{high} ({percentage(high)}%)</strong></div>
+        <div><i className="moderate" /><span>60% – 79% (Moderate)</span><strong>{moderate} ({percentage(moderate)}%)</strong></div>
+        <div><i className="support" /><span>50% – 59% (Needs Support)</span><strong>{support} ({percentage(support)}%)</strong></div>
+        <div><i className="risk" /><span>Below 50% (At Risk)</span><strong>{risk} ({percentage(risk)}%)</strong></div>
       </div>
     </div>
   );
@@ -223,6 +280,33 @@ export default function ClassesSections() {
 
     return result;
   }, [selectedClass, selectedSection, search, activeTab]);
+
+  // Dashboard summary follows the selected class and section filters.
+  // Search text and pagination intentionally do not affect these campus metrics.
+  const scopedRecords = useMemo(() => {
+    return records.filter((row) => {
+      const matchesClass = selectedClass === 'All Classes' || row.className === selectedClass;
+      const matchesSection = selectedSection === 'All Sections' || row.section === selectedSection;
+      return matchesClass && matchesSection;
+    });
+  }, [selectedClass, selectedSection]);
+
+  const summary = useMemo(() => summarizeRecords(scopedRecords), [scopedRecords]);
+
+  const comparisonData = useMemo(() => {
+    const grouped = new Map<string, SectionRecord[]>();
+    scopedRecords.forEach((row) => {
+      const current = grouped.get(row.className) || [];
+      current.push(row);
+      grouped.set(row.className, current);
+    });
+
+    return Array.from(grouped.entries()).map(([name, rows]) => {
+      const students = rows.reduce((sum, row) => sum + row.students, 0);
+      const weightedScore = rows.reduce((sum, row) => sum + row.score * row.students, 0);
+      return { name, score: students ? Math.round(weightedScore / students) : 0 };
+    });
+  }, [scopedRecords]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRecords.length / pageSize));
   const currentPage = Math.min(page, totalPages);
@@ -310,12 +394,18 @@ export default function ClassesSections() {
       </section>
 
       <section className="cs-metrics-grid">
-        <Metric title="Total Classes" value="24" icon={GraduationCap} color="#20b96c" background="#e8faef" />
-        <Metric title="Total Sections" value="72" icon={BookOpen} color="#963ce0" background="#f3eaff" />
-        <Metric title="Total Students" value="820" icon={Users} color="#2778d7" background="#e8f3ff" />
-        <Metric title="Campus Avg. Score" value="68%" icon={Trophy} color="#e99b25" background="#fff4df" note="↑ +6% vs Last Term" />
-        <Metric title="Top Performing Class" value="Class 6 (76%)" icon={TrendingUp} color="#933be0" background="#f4eaff" />
-        <Metric title="Classes < 60%" value="3" icon={AlertTriangle} color="#ed6262" background="#fff0f2" />
+        <Metric title="Total Classes" value={String(summary.totalClasses)} icon={GraduationCap} color="#20b96c" background="#e8faef" />
+        <Metric title="Total Sections" value={String(summary.totalSections)} icon={BookOpen} color="#963ce0" background="#f3eaff" />
+        <Metric title="Total Students" value={String(summary.totalStudents)} icon={Users} color="#2778d7" background="#e8f3ff" />
+        <Metric title="Campus Avg. Score" value={`${summary.averageScore}%`} icon={Trophy} color="#e99b25" background="#fff4df" />
+        <Metric
+          title="Top Performing Class"
+          value={summary.topClass ? `${summary.topClass.name} (${summary.topClass.score}%)` : '—'}
+          icon={TrendingUp}
+          color="#933be0"
+          background="#f4eaff"
+        />
+        <Metric title="Classes < 60%" value={String(summary.classesBelow60)} icon={AlertTriangle} color="#ed6262" background="#fff0f2" />
       </section>
 
       <section className="cs-charts-grid">
@@ -327,7 +417,7 @@ export default function ClassesSections() {
               <p>Average score by class (all sections).</p>
             </div>
           </div>
-          <ClassComparisonChart />
+          <ClassComparisonChart data={comparisonData} />
         </article>
 
         <article className="cs-panel">
@@ -338,7 +428,13 @@ export default function ClassesSections() {
               <p>Students by score range in this term.</p>
             </div>
           </div>
-          <DistributionChart />
+          <DistributionChart
+            totalStudents={summary.totalStudents}
+            high={summary.high}
+            moderate={summary.moderate}
+            support={summary.support}
+            risk={summary.risk}
+          />
         </article>
       </section>
 

@@ -41,6 +41,35 @@ const teachers: Teacher[] = [
   { id: 10, initials: 'SM', name: 'Suma M', subject: 'Science', classes: 'Class 6 (A), Class 8 (B)', students: 95, score: 48, growth: -5, coverage: 80, timeliness: 78 },
 ];
 
+// Match a teacher to the selected class and section using the existing
+// "Class 8 (A, B), Class 9 (A)" assignment format.
+function hasClassSectionAssignment(
+  teacher: Teacher,
+  selectedClass: string,
+  selectedSection: string
+) {
+  if (selectedClass === 'All Classes' && selectedSection === 'All Sections') {
+    return true;
+  }
+
+  const assignments = teacher.classes.matchAll(/(Class\s+\d+)\s*\(([^)]*)\)/g);
+
+  for (const assignment of assignments) {
+    const assignedClass = assignment[1].trim();
+    const assignedSections = assignment[2].split(',').map((value) => value.trim());
+
+    const matchesClass =
+      selectedClass === 'All Classes' || assignedClass === selectedClass;
+    const matchesSection =
+      selectedSection === 'All Sections' ||
+      assignedSections.includes(selectedSection.replace('Section ', ''));
+
+    if (matchesClass && matchesSection) return true;
+  }
+
+  return false;
+}
+
 const trend = [
   { label: 'Term 1', value: 81 },
   { label: 'Term 2', value: 83 },
@@ -48,12 +77,7 @@ const trend = [
   { label: 'This Term', value: 86 },
 ];
 
-const categories = [
-  'All Teachers',
-  'High Performing',
-  'Moderate',
-  'Needs Support',
-];
+const categories = ['All Teachers', 'High Performing', 'Moderate', 'Needs Support'];
 
 function FilterSelect({
   label,
@@ -70,10 +94,7 @@ function FilterSelect({
     <label className="tp-filter">
       <span>{label}</span>
       <div className="tp-select-wrap">
-        <select
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-        >
+        <select value={value} onChange={(event) => onChange(event.target.value)}>
           {options.map((option) => (
             <option key={option}>{option}</option>
           ))}
@@ -91,19 +112,11 @@ function TrendChart() {
     ...item,
   }));
 
-  const line = positions
-    .map((point) => `${point.x},${point.y}`)
-    .join(' ');
-
+  const line = positions.map((point) => `${point.x},${point.y}`).join(' ');
   const area = `55,150 ${line} 415,150`;
 
   return (
-    <svg
-      className="tp-trend-svg"
-      viewBox="0 0 460 190"
-      role="img"
-      aria-label="Teacher performance trend"
-    >
+    <svg className="tp-trend-svg" viewBox="0 0 460 190" role="img" aria-label="Teacher performance trend">
       <defs>
         <linearGradient id="tpTrendFill" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#22c58b" stopOpacity=".3" />
@@ -113,19 +126,10 @@ function TrendChart() {
 
       {[76, 78, 80, 82, 84, 86, 88, 90].map((value) => {
         const y = 150 - (value - 76) * 9;
-
         return (
           <g key={value}>
-            <text x="2" y={y + 4} className="tp-axis-label">
-              {value}%
-            </text>
-            <line
-              x1="42"
-              y1={y}
-              x2="445"
-              y2={y}
-              className="tp-grid-line"
-            />
+            <text x="2" y={y + 4} className="tp-axis-label">{value}%</text>
+            <line x1="42" y1={y} x2="445" y2={y} className="tp-grid-line" />
           </g>
         );
       })}
@@ -135,28 +139,11 @@ function TrendChart() {
 
       {positions.map((point) => (
         <g key={point.label}>
-          <circle
-            cx={point.x}
-            cy={point.y}
-            r="5"
-            className="tp-trend-point"
-          />
-
-          <text
-            x={point.x}
-            y={point.y - 12}
-            textAnchor="middle"
-            className="tp-chart-value"
-          >
+          <circle cx={point.x} cy={point.y} r="5" className="tp-trend-point" />
+          <text x={point.x} y={point.y - 12} textAnchor="middle" className="tp-chart-value">
             {point.value}%
           </text>
-
-          <text
-            x={point.x}
-            y="178"
-            textAnchor="middle"
-            className="tp-axis-label"
-          >
+          <text x={point.x} y="178" textAnchor="middle" className="tp-axis-label">
             {point.label}
           </text>
         </g>
@@ -165,12 +152,25 @@ function TrendChart() {
   );
 }
 
-function DistributionChart() {
+function DistributionChart({
+  total,
+  high,
+  moderate,
+  support,
+}: {
+  total: number;
+  high: number;
+  moderate: number;
+  support: number;
+}) {
+  const percentage = (count: number) =>
+    total ? Math.round((count / total) * 100) : 0;
+
   return (
     <div className="tp-distribution">
       <div className="tp-donut">
         <div className="tp-donut-center">
-          <strong>58</strong>
+          <strong>{total}</strong>
           <span>Teachers</span>
         </div>
       </div>
@@ -179,25 +179,17 @@ function DistributionChart() {
         <div>
           <i className="tp-green" />
           <span>≥ 80% (High Performing)</span>
-          <strong>42 (72%)</strong>
+          <strong>{high} ({percentage(high)}%)</strong>
         </div>
-
         <div>
           <i className="tp-blue" />
           <span>60% – 79% (Moderate)</span>
-          <strong>12 (21%)</strong>
+          <strong>{moderate} ({percentage(moderate)}%)</strong>
         </div>
-
         <div>
           <i className="tp-yellow" />
-          <span>50% – 59% (Needs Improvement)</span>
-          <strong>3 (5%)</strong>
-        </div>
-
-        <div>
-          <i className="tp-red" />
-          <span>&lt; 50% (At Risk)</span>
-          <strong>1 (2%)</strong>
+          <span>Below 60% (Needs Support)</span>
+          <strong>{support} ({percentage(support)}%)</strong>
         </div>
       </div>
     </div>
@@ -217,16 +209,27 @@ export default function TeacherPerformance() {
   const [className, setClassName] = useState('All Classes');
   const [section, setSection] = useState('All Sections');
   const [subject, setSubject] = useState('All Subjects');
-
   const [activeTab, setActiveTab] = useState('All Teachers');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
 
-  const [selectedTeacher, setSelectedTeacher] =
-    useState<Teacher | null>(null);
-
-  const filteredTeachers = useMemo(() => {
+  // Filter mock teacher records by the selected class, section and subject.
+  const scopedTeachers = useMemo(() => {
     return teachers.filter((teacher) => {
+      const matchesSubject =
+        subject === 'All Subjects' || teacher.subject === subject;
+
+      return (
+        matchesSubject &&
+        hasClassSectionAssignment(teacher, className, section)
+      );
+    });
+  }, [subject, className, section]);
+
+  // Search and category tabs affect the table, not the KPI calculations.
+  const filteredTeachers = useMemo(() => {
+    return scopedTeachers.filter((teacher) => {
       const matchesSearch =
         teacher.name.toLowerCase().includes(search.toLowerCase()) ||
         teacher.subject.toLowerCase().includes(search.toLowerCase());
@@ -235,29 +238,54 @@ export default function TeacherPerformance() {
         activeTab === 'All Teachers' ||
         getCategory(teacher.score) === activeTab;
 
-      const matchesSubject =
-        subject === 'All Subjects' || teacher.subject === subject;
-
-      const matchesClass =
-        className === 'All Classes' ||
-        teacher.classes.includes(className);
-
-      const matchesSection =
-        section === 'All Sections' ||
-        teacher.classes.includes(section.replace('Section ', '('));
-
-      return (
-        matchesSearch &&
-        matchesTab &&
-        matchesSubject &&
-        matchesClass &&
-        matchesSection
-      );
+      return matchesSearch && matchesTab;
     });
-  }, [search, activeTab, subject, className, section]);
+  }, [scopedTeachers, search, activeTab]);
+
+  // Calculate the summary using the selected class and section records.
+  const teacherSummary = useMemo(() => {
+    const total = scopedTeachers.length;
+
+    const high = scopedTeachers.filter(
+      (teacher) => teacher.score >= 80
+    ).length;
+
+    const moderate = scopedTeachers.filter(
+      (teacher) => teacher.score >= 60 && teacher.score < 80
+    ).length;
+
+    const support = scopedTeachers.filter(
+      (teacher) => teacher.score < 60
+    ).length;
+
+    const averageScore = total
+      ? Math.round(
+          scopedTeachers.reduce((sum, teacher) => sum + teacher.score, 0) /
+            total
+        )
+      : 0;
+
+    return { total, high, moderate, support, averageScore };
+  }, [scopedTeachers]);
+
+  // Category tab counts also update when the class or section changes.
+  const categoryCounts = useMemo(
+    () => ({
+      all: scopedTeachers.length,
+      high: scopedTeachers.filter(
+        (teacher) => getCategory(teacher.score) === 'High Performing'
+      ).length,
+      moderate: scopedTeachers.filter(
+        (teacher) => getCategory(teacher.score) === 'Moderate'
+      ).length,
+      support: scopedTeachers.filter(
+        (teacher) => getCategory(teacher.score) === 'Needs Support'
+      ).length,
+    }),
+    [scopedTeachers]
+  );
 
   const pageSize = 8;
-
   const totalPages = Math.max(
     1,
     Math.ceil(filteredTeachers.length / pageSize)
@@ -269,12 +297,6 @@ export default function TeacherPerformance() {
   );
 
   const refresh = () => {
-    setAcademicYear('2025 – 2026');
-    setCurriculum('CBSE');
-    setTerm('This Term');
-    setClassName('All Classes');
-    setSection('All Sections');
-    setSubject('All Subjects');
     setSearch('');
     setActiveTab('All Teachers');
     setPage(1);
@@ -334,7 +356,6 @@ export default function TeacherPerformance() {
           </div>
 
           <h1>Teacher Performance</h1>
-
           <p>
             Track teacher effectiveness, class performance, and academic
             contributions.
@@ -421,18 +442,16 @@ export default function TeacherPerformance() {
         />
 
         <button className="tp-refresh-button" onClick={refresh}>
-          <RefreshCw size={15} />
-          Refresh
+          <RefreshCw size={15} /> Refresh
         </button>
       </section>
 
-      {/* Four academic performance metrics. No attendance metric. */}
       <section className="tp-metrics">
         <article className="tp-metric tp-metric-green">
           <Users />
           <div>
             <span>Total Teachers</span>
-            <strong>58</strong>
+            <strong>{teacherSummary.total}</strong>
           </div>
         </article>
 
@@ -440,9 +459,7 @@ export default function TeacherPerformance() {
           <TrendingUp />
           <div>
             <span>Avg. Teacher Performance</span>
-            <strong>
-              86% <small>↑ +5% vs Last Term</small>
-            </strong>
+            <strong>{teacherSummary.averageScore}%</strong>
           </div>
         </article>
 
@@ -450,7 +467,15 @@ export default function TeacherPerformance() {
           <Trophy />
           <div>
             <span>High Performing (≥ 80%)</span>
-            <strong>42 (72%)</strong>
+            <strong>
+              {teacherSummary.high} (
+              {teacherSummary.total
+                ? Math.round(
+                    (teacherSummary.high / teacherSummary.total) * 100
+                  )
+                : 0}
+              %)
+            </strong>
           </div>
         </article>
 
@@ -458,7 +483,15 @@ export default function TeacherPerformance() {
           <AlertTriangle />
           <div>
             <span>Needs Support (&lt; 60%)</span>
-            <strong>4 (7%)</strong>
+            <strong>
+              {teacherSummary.support} (
+              {teacherSummary.total
+                ? Math.round(
+                    (teacherSummary.support / teacherSummary.total) * 100
+                  )
+                : 0}
+              %)
+            </strong>
           </div>
         </article>
       </section>
@@ -485,7 +518,12 @@ export default function TeacherPerformance() {
             </div>
           </div>
 
-          <DistributionChart />
+          <DistributionChart
+            total={teacherSummary.total}
+            high={teacherSummary.high}
+            moderate={teacherSummary.moderate}
+            support={teacherSummary.support}
+          />
         </article>
       </section>
 
@@ -503,12 +541,12 @@ export default function TeacherPerformance() {
               >
                 {category} (
                 {category === 'All Teachers'
-                  ? 58
+                  ? categoryCounts.all
                   : category === 'High Performing'
-                    ? 42
+                    ? categoryCounts.high
                     : category === 'Moderate'
-                      ? 12
-                      : 4}
+                      ? categoryCounts.moderate
+                      : categoryCounts.support}
                 )
               </button>
             ))}
@@ -527,12 +565,8 @@ export default function TeacherPerformance() {
               />
             </label>
 
-            <button
-              className="tp-export-button"
-              onClick={exportTeachers}
-            >
-              <Download size={15} />
-              Export
+            <button className="tp-export-button" onClick={exportTeachers}>
+              <Download size={15} /> Export
             </button>
           </div>
         </div>
@@ -617,8 +651,7 @@ export default function TeacherPerformance() {
                       className="tp-view-details"
                       onClick={() => setSelectedTeacher(teacher)}
                     >
-                      View Details
-                      <ArrowUpRight size={13} />
+                      View Details <ArrowUpRight size={13} />
                     </button>
                   </td>
                 </tr>
@@ -731,3 +764,4 @@ export default function TeacherPerformance() {
     </main>
   );
 }
+        

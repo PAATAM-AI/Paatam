@@ -291,41 +291,8 @@ export default function PrincipalOverview() {
 
   return (
     <main className="campus-overview-page">
-      {/* Mohit's original Campus Overview header and placeholder summary are intentionally retained. */}
-      <header
-        className="page-top-bar no-print"
-        style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '1rem' }}
-      >
-        <div className="page-top-bar-text">
-          <h1>Campus Overview</h1>
-          <p>Placeholder tab for campus-wide leadership insights and branch performance.</p>
-        </div>
+      
 
-        <div className="m-card" style={{ padding: '1.5rem' }}>
-          <h3 className="m-card-title" style={{ marginBottom: '0.5rem' }}>Mock Campus Summary</h3>
-          <p style={{ margin: 0, color: '#64748B', fontSize: '0.875rem' }}>
-            This placeholder will be replaced by the final Campus Overview implementation.
-          </p>
-        </div>
-      </header>
-
-      <div
-        role="note"
-        aria-label="Demo data notice"
-        style={{
-          padding: '0.75rem 1rem',
-          border: '1px solid #f2d49b',
-          borderRadius: '0.65rem',
-          background: '#fff9eb',
-          color: '#805414',
-          fontSize: '0.82rem',
-          lineHeight: 1.5,
-        }}
-      >
-        <strong>Illustrative demo data:</strong> The metrics and charts below are sample values.
-        The filters are currently visual controls and are not connected to live campus data or
-        backend filtering.
-      </div>
 
       <div className="campus-page-heading">
         <div>
