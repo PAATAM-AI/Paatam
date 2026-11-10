@@ -23,8 +23,29 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3001;
 
+const allowedOrigins = (process.env.CORS_ORIGINS || 'https://www.paatam.in,https://paatam.in,http://localhost:5173,http://localhost:3000')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const corsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'],
+  credentials: true,
+  optionsSuccessStatus: 204
+};
+
 // Global Middleware
-app.use(cors());
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use((req, res, next) => {
   if (req.url.startsWith('//')) {
     req.url = req.url.replace(/^\/+/, '/');
