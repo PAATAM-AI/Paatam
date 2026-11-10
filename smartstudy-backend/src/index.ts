@@ -23,19 +23,20 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3001;
 
-const allowedOrigins = (process.env.CORS_ORIGINS || 'https://www.paatam.in,https://paatam.in,http://localhost:5173,http://localhost:3000')
+const allowedOrigins = (process.env.CORS_ORIGINS || 'https://www.paatam.in,https://paatam.in,https://paatam-frontend.vercel.app,http://localhost:5173,http://localhost:3000')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
 
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
       callback(null, true);
       return;
     }
 
-    callback(new Error(`CORS blocked for origin: ${origin}`));
+    console.warn(`⚠️ [CORS REJECTED] Origin not allowed: ${origin}`);
+    callback(null, false);
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'],
@@ -45,7 +46,7 @@ const corsOptions: cors.CorsOptions = {
 
 // Global Middleware
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+
 app.use((req, res, next) => {
   if (req.url.startsWith('//')) {
     req.url = req.url.replace(/^\/+/, '/');
