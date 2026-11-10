@@ -1,4 +1,6 @@
-export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '')
+  .replace('.ngrok-free.app', '.ngrok-free.dev')
+  .replace(/\/+$/, '');
 
 // Global fetch enhancer:
 // 1. Automatically strips double slashes from URLs (e.g. dev//api -> dev/api)
