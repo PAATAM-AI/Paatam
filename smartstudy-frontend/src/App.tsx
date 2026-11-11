@@ -4,6 +4,7 @@ import {
   BrowserRouter as Router,
   Routes,
   Route,
+  Navigate,
   useLocation,
 } from 'react-router-dom';
 
@@ -34,30 +35,26 @@ import PrincipalOverview from './pages/principal/Overview';
 import PrincipalClasses from './pages/principal/ClassesSections';
 import PrincipalTeachers from './pages/principal/TeacherPerformance';
 
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { API_BASE_URL } from './config/api';
 
-// Handles both normal routes and legacy query parameter navigation.
-function MainRouteDispatcher() {
+// Handles both normal routes and legacy query parameter navigation under /overview.
+function OverviewRouteDispatcher() {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const tab = searchParams.get('tab');
 
-  if (location.pathname === '/') {
-    if (tab === 'scan') return <ScanGrade />;
-    if (tab === 'queue') return <ReviewQueue />;
-    if (tab === 'knowledge') return <KnowledgeBase />;
+  if (tab === 'scan') return <ScanGrade />;
+  if (tab === 'queue') return <ReviewQueue />;
+  if (tab === 'knowledge') return <KnowledgeBase />;
 
-    if (tab === 'generator' || tab === 'exam-generator') {
-      return <ExamGenerator />;
-    }
-
-    if (tab === 'analytics') return <Analytics />;
-
-    return <Overview />;
+  if (tab === 'generator' || tab === 'exam-generator') {
+    return <ExamGenerator />;
   }
 
-  return null;
+  if (tab === 'analytics') return <Analytics />;
+
+  return <Overview />;
 }
 
 function App() {
@@ -98,22 +95,34 @@ function AppLayout({
   onClearDb: () => void;
 }) {
   const location = useLocation();
+  const { isAuthenticated, role } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
-
-  const isLoginPage = location.pathname === '/login';
 
   const handleSidebarToggle = () => {
     setCollapsed((previous) => !previous);
   };
 
+  // Root URL always routes to /login regardless of any cached browser storage.
+  if (location.pathname === '/') {
+    return <Navigate to="/login" replace />;
+  }
+
   // Keep the existing login screen layout unchanged.
-  if (isLoginPage) {
+  if (location.pathname === '/login') {
     return (
       <Routes>
         <Route path="/login" element={<LoginPage />} />
       </Routes>
     );
   }
+
+  // Protect all dashboard routes when no active user has logged in.
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const defaultDashboardPath =
+    role === 'ADMIN' ? '/campus-overview' : role === 'TEACHER' ? '/overview' : '/student';
 
   return (
     <div
@@ -131,9 +140,9 @@ function AppLayout({
         <TopBar onClearDb={onClearDb} />
 
         <Routes>
-          {/* Existing dashboard and legacy navigation */}
-          <Route path="/" element={<MainRouteDispatcher />} />
+          <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/overview" element={<OverviewRouteDispatcher />} />
 
           {/* Student Analytics */}
           <Route path="/analytics" element={<Analytics />} />
@@ -183,6 +192,7 @@ function AppLayout({
           {/* Existing student and parent portals */}
           <Route path="/student" element={<StudentPortal />} />
           <Route path="/parent" element={<ParentPortal />} />
+          <Route path="*" element={<Navigate to={defaultDashboardPath} replace />} />
         </Routes>
       </div>
     </div>

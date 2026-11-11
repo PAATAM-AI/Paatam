@@ -120,8 +120,8 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
                 style={{
                   padding: '0.875rem 0.5rem',
                   borderRadius: '0.75rem',
-                  border: currentUser.role === 'ADMIN' ? '2px solid #2563EB' : '1px solid #E2E8F0',
-                  background: currentUser.role === 'ADMIN' ? '#EFF6FF' : '#F8FAFC',
+                  border: currentUser?.role === 'ADMIN' ? '2px solid #2563EB' : '1px solid #E2E8F0',
+                  background: currentUser?.role === 'ADMIN' ? '#EFF6FF' : '#F8FAFC',
                   cursor: 'pointer',
                   textAlign: 'center',
                   transition: 'all 0.2s ease'
@@ -151,8 +151,8 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
                 style={{
                   padding: '0.875rem 0.5rem',
                   borderRadius: '0.75rem',
-                  border: currentUser.role === 'TEACHER' ? '2px solid #059669' : '1px solid #E2E8F0',
-                  background: currentUser.role === 'TEACHER' ? '#ECFDF5' : '#F8FAFC',
+                  border: currentUser?.role === 'TEACHER' ? '2px solid #059669' : '1px solid #E2E8F0',
+                  background: currentUser?.role === 'TEACHER' ? '#ECFDF5' : '#F8FAFC',
                   cursor: 'pointer',
                   textAlign: 'center',
                   transition: 'all 0.2s ease'
@@ -182,8 +182,8 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
                 style={{
                   padding: '0.875rem 0.5rem',
                   borderRadius: '0.75rem',
-                  border: currentUser.role === 'STUDENT' ? '2px solid #7C3AED' : '1px solid #E2E8F0',
-                  background: currentUser.role === 'STUDENT' ? '#F5F3FF' : '#F8FAFC',
+                  border: currentUser?.role === 'STUDENT' ? '2px solid #7C3AED' : '1px solid #E2E8F0',
+                  background: currentUser?.role === 'STUDENT' ? '#F5F3FF' : '#F8FAFC',
                   cursor: 'pointer',
                   textAlign: 'center',
                   transition: 'all 0.2s ease'

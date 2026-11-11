@@ -188,10 +188,10 @@ export default function TopBar({ onClearDb: _onClearDb }: TopBarProps) {
             title="Account settings"
           >
             <div className="topbar-avatar-circle">
-              {getInitials(currentUser.name)}
+              {getInitials(currentUser?.name)}
             </div>
             <div className="topbar-user-text">
-              <span className="topbar-user-name">{currentUser.name}</span>
+              <span className="topbar-user-name">{currentUser?.name}</span>
               <span className="topbar-user-role">{roleLabel}</span>
             </div>
             <ChevronDown size={15} className={`topbar-chevron ${isProfileOpen ? 'rotate-180' : ''}`} />
@@ -203,23 +203,23 @@ export default function TopBar({ onClearDb: _onClearDb }: TopBarProps) {
               <div className="profile-menu-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                   <div className="topbar-avatar-circle large">
-                    {getInitials(currentUser.name)}
+                    {getInitials(currentUser?.name)}
                   </div>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: '0.9375rem', color: '#0F172A' }}>
-                      {currentUser.name}
+                      {currentUser?.name}
                     </div>
                     <div style={{ fontSize: '0.75rem', color: '#64748B' }}>
-                      {currentUser.email}
+                      {currentUser?.email}
                     </div>
                   </div>
                 </div>
                 <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <span className={`role-tag role-${role.toLowerCase()}`}>
+                  <span className={`role-tag role-${(role || 'student').toLowerCase()}`}>
                     {roleLabel}
                   </span>
                   <span className="branch-tag">
-                    {currentUser.branchName || 'Hyderabad Central Campus'}
+                    {currentUser?.branchName || 'Hyderabad Central Campus'}
                   </span>
                 </div>
               </div>

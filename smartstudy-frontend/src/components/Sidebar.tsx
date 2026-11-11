@@ -42,13 +42,13 @@ export default function Sidebar({
       const searchParams = new URLSearchParams(location.search);
 
       return (
-        location.pathname === '/' &&
+        location.pathname === '/overview' &&
         searchParams.get('tab') === tab
       );
     }
 
-    if (path === '/') {
-      return location.pathname === '/' && !location.search;
+    if (path === '/overview') {
+      return location.pathname === '/overview' && !location.search;
     }
 
     return (
@@ -116,10 +116,10 @@ export default function Sidebar({
         {/* Overview - TEACHER */}
         {isTeacher && (
           <NavLink
-            to="/"
+            to="/overview"
             end
             title="Overview"
-            className={() => linkClass(isActive('/', 'overview'))}
+            className={() => linkClass(isActive('/overview') || isActive('/overview', 'overview'))}
           >
             <LayoutDashboard className="size-4 sidebar-nav-icon shrink-0" />
             {!collapsed && <span>Overview</span>}
@@ -196,7 +196,7 @@ export default function Sidebar({
             className={() =>
               linkClass(
                 isActive('/knowledge') ||
-                isActive('/', 'knowledge')
+                isActive('/overview', 'knowledge')
               )
             }
           >
@@ -213,8 +213,8 @@ export default function Sidebar({
             className={() =>
               linkClass(
                 isActive('/generator') ||
-                isActive('/', 'generator') ||
-                isActive('/', 'exam-generator')
+                isActive('/overview', 'generator') ||
+                isActive('/overview', 'exam-generator')
               )
             }
           >

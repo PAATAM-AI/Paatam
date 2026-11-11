@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ShieldCheck,
@@ -23,7 +23,12 @@ const MOCK_LOGIN_CREDENTIALS: Record<UserRole, { email: string; password: string
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { loginWithProfile } = useAuth();
+  const { loginWithProfile, logout } = useAuth();
+
+  // Ensure visiting /login always starts from a clean unauthenticated state regardless of localStorage.
+  useEffect(() => {
+    logout();
+  }, [logout]);
 
   const [desk, setDesk] = useState<UserRole>('ADMIN');
   const [email, setEmail] = useState('');
@@ -49,7 +54,7 @@ export default function LoginPage() {
 
     const roleForDesk = desk === 'ADMIN' ? 'ADMIN' : desk === 'TEACHER' ? 'TEACHER' : 'STUDENT';
     loginWithProfile(DEMO_PROFILES[roleForDesk]);
-    const landingPath = roleForDesk === 'ADMIN' ? '/campus-overview' : roleForDesk === 'TEACHER' ? '/' : '/student';
+    const landingPath = roleForDesk === 'ADMIN' ? '/campus-overview' : roleForDesk === 'TEACHER' ? '/overview' : '/student';
 
     setTimeout(() => {
       navigate(landingPath);

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '../config/api';
 
 export type UserRole = 'ADMIN' | 'TEACHER' | 'STUDENT';
@@ -27,8 +27,9 @@ export interface Branch {
 }
 
 interface AuthContextType {
-  currentUser: UserProfile;
-  role: UserRole;
+  currentUser: UserProfile | null;
+  role: UserRole | null;
+  isAuthenticated: boolean;
   branches: Branch[];
   currentBranchId: string;
   setCurrentBranchId: (id: string) => void;
@@ -74,25 +75,8 @@ export const DEMO_PROFILES: Record<UserRole, UserProfile> = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
-    const saved = localStorage.getItem('paatam_user');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as UserProfile;
-        if (parsed?.id === DEMO_PROFILES.ADMIN.id || parsed?.role === 'ADMIN') {
-          return DEMO_PROFILES.ADMIN;
-        }
-        if (parsed?.id === DEMO_PROFILES.TEACHER.id || parsed?.role === 'TEACHER') {
-          return { ...DEMO_PROFILES.TEACHER, branchId: parsed.branchId || DEMO_PROFILES.TEACHER.branchId, branchName: parsed.branchName || DEMO_PROFILES.TEACHER.branchName };
-        }
-        if (parsed?.id === DEMO_PROFILES.STUDENT.id || parsed?.role === 'STUDENT') {
-          return { ...DEMO_PROFILES.STUDENT, branchId: parsed.branchId || DEMO_PROFILES.STUDENT.branchId, branchName: parsed.branchName || DEMO_PROFILES.STUDENT.branchName };
-        }
-        return parsed;
-      } catch (e) {}
-    }
-    return DEMO_PROFILES.ADMIN;
-  });
+  // Always start logged out so opening the app never auto-enters a dashboard from localStorage.
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
 
   const [branches, setBranches] = useState<Branch[]>([
     { id: 'branch-main', name: 'Hyderabad Central Campus' },
@@ -101,6 +85,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentBranchId, setCurrentBranchId] = useState<string>(() => {
     return localStorage.getItem('paatam_branch_id') || 'branch-main';
   });
+
+  useEffect(() => {
+    // Clear any previously persisted user session so stale localStorage entries never trigger auto-login.
+    localStorage.removeItem('paatam_user');
+  }, []);
 
   // Fetch live branches from backend
   useEffect(() => {
@@ -118,23 +107,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const switchRole = (newRole: UserRole) => {
-    const profile = DEMO_PROFILES[newRole];
-    setCurrentUser(profile);
-    localStorage.setItem('paatam_user', JSON.stringify(profile));
+    setCurrentUser(DEMO_PROFILES[newRole]);
   };
 
   const loginWithProfile = (profile: UserProfile) => {
     setCurrentUser(profile);
-    localStorage.setItem('paatam_user', JSON.stringify(profile));
   };
 
-  const logout = () => {
-    setCurrentUser(DEMO_PROFILES.ADMIN);
+  const logout = useCallback(() => {
+    setCurrentUser(null);
     localStorage.removeItem('paatam_user');
-  };
+  }, []);
 
   const isRole = (roles: UserRole[]) => {
-    return roles.includes(currentUser.role);
+    return currentUser ? roles.includes(currentUser.role) : false;
   };
 
   const handleBranchChange = (branchId: string) => {
@@ -146,7 +132,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider
       value={{
         currentUser,
-        role: currentUser.role,
+        role: currentUser?.role ?? null,
+        isAuthenticated: Boolean(currentUser),
         branches,
         currentBranchId,
         setCurrentBranchId: handleBranchChange,

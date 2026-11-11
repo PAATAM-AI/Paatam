@@ -23,7 +23,7 @@ export default function Header() {
     } else if (tabKey === 'parent') {
       navigate('/parent');
     } else {
-      navigate(`/?tab=${tabKey}`);
+      navigate(`/overview?tab=${tabKey}`);
     }
   };
 

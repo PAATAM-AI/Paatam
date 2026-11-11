@@ -59,7 +59,7 @@ export default function VerificationPage() {
     } catch (err) {
       console.error(err);
     }
-    navigate('/');
+    navigate('/overview');
   };
 
   if (loading) {
@@ -75,7 +75,7 @@ export default function VerificationPage() {
     return (
       <div style={{ padding: '3rem', textAlign: 'center' }}>
         <h2>⚠️ Submission Not Found</h2>
-        <button className="btn btn-primary" onClick={() => navigate('/')} style={{ marginTop: '1rem' }}>
+        <button className="btn btn-primary" onClick={() => navigate('/overview')} style={{ marginTop: '1rem' }}>
           Return to Dashboard
         </button>
       </div>
@@ -152,7 +152,7 @@ export default function VerificationPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
         <div>
           <button 
-            onClick={() => navigate('/')} 
+            onClick={() => navigate('/overview')} 
             className="btn btn-outline"
             style={{ padding: '0.35rem 0.85rem', fontSize: '0.8rem', marginBottom: '0.5rem' }}
           >
