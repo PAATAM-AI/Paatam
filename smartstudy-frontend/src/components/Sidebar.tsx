@@ -80,7 +80,7 @@ export default function Sidebar({
           <div className="sidebar-brand-text">
             <p className="sidebar-brand-name">PAATAM.AI</p>
             <p className="sidebar-brand-tagline">
-              AI SCHOOL MANAGEMENT
+              AI Learning Intelligence
             </p>
           </div>
         )}

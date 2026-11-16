@@ -98,9 +98,9 @@ export default function TopBar({ onClearDb: _onClearDb }: TopBarProps) {
   return (
     <header className="app-topbar no-print">
       <div className="topbar-school-block">
-        <img src={schoolLogo} alt="Bellwether school logo" className="topbar-school-logo" />
+        <img src={schoolLogo} alt="Paatam school logo" className="topbar-school-logo" />
         <div className="topbar-school-text">
-          <span className="topbar-school-name">Bellwether International School</span>
+          <span className="topbar-school-name">Paatam International School</span>
           <span className="topbar-school-meta">Academic Campus · Session 2026-27</span>
         </div>
       </div>

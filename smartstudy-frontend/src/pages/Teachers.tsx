@@ -23,7 +23,7 @@ const MOCK_FACULTY: TeacherItem[] = [
     id: 'mock-fac-1',
     name: 'Ananya Rao',
     teacher_id: 'FAC-201',
-    contact_email: 'ananya.rao@bellwether.edu',
+    contact_email: 'ananya.rao@paatam.edu',
     contact_mobile: '+91 9000011201',
     branches: { id: 'branch-main', name: 'Hyderabad Central Campus' },
     teacher_subject: [{ id: 'm1', subject_id: 'physics', subjects: { id: 'physics', name: 'Physics' } }]
@@ -32,7 +32,7 @@ const MOCK_FACULTY: TeacherItem[] = [
     id: 'mock-fac-2',
     name: 'Raghav Mehta',
     teacher_id: 'FAC-202',
-    contact_email: 'raghav.mehta@bellwether.edu',
+    contact_email: 'raghav.mehta@paatam.edu',
     contact_mobile: '+91 9000011202',
     branches: { id: 'branch-main', name: 'Hyderabad Central Campus' },
     teacher_subject: [{ id: 'm2', subject_id: 'chemistry', subjects: { id: 'chemistry', name: 'Chemistry' } }]
@@ -41,7 +41,7 @@ const MOCK_FACULTY: TeacherItem[] = [
     id: 'mock-fac-3',
     name: 'Nisha Verma',
     teacher_id: 'FAC-203',
-    contact_email: 'nisha.verma@bellwether.edu',
+    contact_email: 'nisha.verma@paatam.edu',
     contact_mobile: '+91 9000011203',
     branches: { id: 'branch-main', name: 'Hyderabad Central Campus' },
     teacher_subject: [{ id: 'm3', subject_id: 'psychology', subjects: { id: 'psychology', name: 'Psychology' } }]
@@ -50,7 +50,7 @@ const MOCK_FACULTY: TeacherItem[] = [
     id: 'mock-fac-4',
     name: 'Imran Siddiqui',
     teacher_id: 'FAC-204',
-    contact_email: 'imran.siddiqui@bellwether.edu',
+    contact_email: 'imran.siddiqui@paatam.edu',
     contact_mobile: '+91 9000011204',
     branches: { id: 'branch-main', name: 'Hyderabad Central Campus' },
     teacher_subject: [{ id: 'm4', subject_id: 'mathematics', subjects: { id: 'mathematics', name: 'Mathematics' } }]
