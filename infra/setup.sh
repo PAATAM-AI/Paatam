@@ -19,7 +19,7 @@ ok "APIs enabled"
 log "2/8 Service account for the API"
 gcloud iam service-accounts describe "$API_SA" >/dev/null 2>&1 || \
   gcloud iam service-accounts create "$API_SA_NAME" --display-name="${APP} API (Cloud Run)"
-for role in roles/alloydb.client roles/aiplatform.user roles/bigquery.dataEditor roles/bigquery.jobUser \
+for role in roles/alloydb.client roles/serviceusage.serviceUsageConsumer roles/aiplatform.user roles/bigquery.dataEditor roles/bigquery.jobUser \
             roles/secretmanager.secretAccessor roles/logging.logWriter; do
   gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:${API_SA}" \
     --role="$role" --condition=None >/dev/null
