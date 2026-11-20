@@ -45,11 +45,15 @@ WEB_URL="${WEB_URL:-http://localhost:5173}"
 log "2/5 Deploying ${API_SERVICE} (API + PostgREST sidecar → AlloyDB)"
 export API_SERVICE SECRET_PREFIX API_IMAGE POSTGREST_IMAGE API_SA GCS_BUCKET PROJECT_ID VERTEX_LOCATION GEMINI_MODEL \
        GEMINI_IMAGE_MODEL BQ_DATASET REGION WEB_URL VPC_NETWORK VPC_SUBNET OPTIONAL_SECRET_ENV
+# DATA_BACKEND=alloydb (default): PostgREST sidecar → AlloyDB. DATA_BACKEND=supabase: existing Supabase.
+TEMPLATE=infra/cloudrun/api-service.yaml
+[ "${DATA_BACKEND:-alloydb}" = "supabase" ] && TEMPLATE=infra/cloudrun/api-service-supabase.yaml
+log "   data backend: ${DATA_BACKEND:-alloydb} (${TEMPLATE})"
 if command -v envsubst >/dev/null; then
-  envsubst < infra/cloudrun/api-service.yaml > /tmp/${API_SERVICE}.yaml
+  envsubst < "$TEMPLATE" > /tmp/${API_SERVICE}.yaml
 else
   python3 -c 'import os,sys; sys.stdout.write(os.path.expandvars(sys.stdin.read()))' \
-    < infra/cloudrun/api-service.yaml > /tmp/${API_SERVICE}.yaml
+    < "$TEMPLATE" > /tmp/${API_SERVICE}.yaml
 fi
 gcloud run services replace /tmp/${API_SERVICE}.yaml --region="$REGION" --quiet
 API_URL="$(gcloud run services describe "$API_SERVICE" --region="$REGION" --format='value(status.url)')"
