@@ -34,6 +34,12 @@ source_ro() { # read-only query on Supabase: source_ro <sql>
   env -u PGPASSWORD psql "$SUPABASE_DB_URL" -tA -v ON_ERROR_STOP=1 -c "BEGIN READ ONLY" -c "$1" -c "ROLLBACK" | grep -E '^[0-9]+$'
 }
 
+log "Checking the connection to AlloyDB"
+if ! target postgres -tAc "SELECT version()"; then
+  echo "Could not connect through the Auth Proxy. Proxy log:"; cat "$WORK/proxy.log"
+  exit 1
+fi
+
 log "Creating database ${DB_NAME} and extensions (AlloyDB)"
 target postgres -tAc "SELECT 1 FROM pg_database WHERE datname='${DB_NAME}'" | grep -q 1 || \
   target postgres -c "CREATE DATABASE ${DB_NAME}"
