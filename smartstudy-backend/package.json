@@ -20,6 +20,7 @@
     "@types/adm-zip": "^0.5.8",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.2.0",
     "@types/node": "^26.2.0",
     "@types/pdf-parse": "^1.1.5",
@@ -37,10 +38,15 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@google-cloud/bigquery": "^8.3.1",
+    "@google-cloud/storage": "^7.22.0",
     "@napi-rs/canvas": "^1.0.9",
+    "@supabase/postgrest-js": "^2.112.3",
     "@supabase/supabase-js": "^2.112.3",
     "@whiskeysockets/baileys": "^7.0.0-rc14",
     "adm-zip": "^0.6.0",
+    "google-auth-library": "^10.9.1",
+    "jsonwebtoken": "^9.0.3",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^6.3.289",
     "qrcode-terminal": "^0.12.0",

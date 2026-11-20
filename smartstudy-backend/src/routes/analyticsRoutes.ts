@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { supabase } from '../db/supabase.js';
 import { AuthenticatedRequest, optionalAuth } from '../middleware/authMiddleware.js';
+import { syncToBigQuery, getCampusAnalytics, isBigQueryConfigured } from '../services/bigqueryService.js';
 
 const router = Router();
 
@@ -140,6 +141,50 @@ router.get('/analytics/students', optionalAuth, async (req: AuthenticatedRequest
     res.json({ success: true, students: studentAnalytics });
   } catch (err: any) {
     res.status(500).json({ success: false, message: err?.message || 'Error fetching student analytics' });
+  }
+});
+
+
+// -------------------------------------------------------------
+// BigQuery analytics (Google Cloud): campus dashboard + sync from AlloyDB
+// -------------------------------------------------------------
+let lastSyncStartedAt = 0;
+let syncInFlight: Promise<any> | null = null;
+
+router.post('/analytics/bigquery/sync', async (req, res) => {
+  if (!isBigQueryConfigured()) {
+    return res.status(503).json({ success: false, message: 'BigQuery is not configured (BQ_DATASET / GOOGLE_CLOUD_PROJECT).' });
+  }
+  if (syncInFlight) return res.json({ success: true, data: await syncInFlight, note: 'joined running sync' });
+  if (Date.now() - lastSyncStartedAt < 60_000) {
+    return res.status(429).json({ success: false, message: 'A sync ran less than a minute ago. Try again shortly.' });
+  }
+  lastSyncStartedAt = Date.now();
+  try {
+    syncInFlight = syncToBigQuery();
+    const data = await syncInFlight;
+    res.json({ success: true, data });
+  } catch (err: any) {
+    console.error('❌ BigQuery sync failed:', err);
+    res.status(500).json({ success: false, message: err?.message || 'BigQuery sync failed' });
+  } finally {
+    syncInFlight = null;
+  }
+});
+
+router.get('/analytics/bigquery', async (req, res) => {
+  if (!isBigQueryConfigured()) {
+    return res.status(503).json({ success: false, message: 'BigQuery is not configured.' });
+  }
+  try {
+    res.json({ success: true, data: await getCampusAnalytics() });
+  } catch (err: any) {
+    const notSynced = /Not found: (Table|View)/i.test(err?.message || '');
+    res.status(notSynced ? 409 : 500).json({
+      success: false,
+      code: notSynced ? 'NOT_SYNCED' : 'BIGQUERY_ERROR',
+      message: notSynced ? 'No analytics in BigQuery yet. Run a sync first.' : err?.message || 'BigQuery query failed',
+    });
   }
 });
 

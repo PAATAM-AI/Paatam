@@ -1,4 +1,5 @@
 import { AIProvider, CompletionRequest, CompletionResponse } from '../types.js';
+import { geminiGenerateContent, isGeminiConfigured } from '../../geminiClient.js';
 
 export class GeminiProvider implements AIProvider {
   readonly name = 'gemini' as const;
@@ -9,14 +10,12 @@ export class GeminiProvider implements AIProvider {
   }
 
   isAvailable(): boolean {
-    const key = process.env.GEMINI_API_KEY;
-    return Boolean(key && !key.includes('your_gemini_api_key'));
+    return isGeminiConfigured();
   }
 
   async generateCompletion(request: CompletionRequest): Promise<CompletionResponse> {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error('[GeminiProvider] GEMINI_API_KEY is not configured.');
+    if (!isGeminiConfigured()) {
+      throw new Error('[GeminiProvider] Gemini is not configured (set AI_BACKEND=vertex + GOOGLE_CLOUD_PROJECT, or GEMINI_API_KEY).');
     }
 
     const modelName = request.preferredModel || this.defaultModel;
@@ -68,12 +67,7 @@ export class GeminiProvider implements AIProvider {
       };
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+    const res = await geminiGenerateContent(modelName, payload);
 
     const latencyMs = Date.now() - startTime;
 

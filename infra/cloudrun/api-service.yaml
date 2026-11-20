@@ -1,0 +1,121 @@
+# Cloud Run service: Paatam API + PostgREST sidecar (PostgREST is only reachable on localhost).
+# Rendered by infra/deploy.sh with envsubst; do not put secret values here.
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: paatam-api
+  labels:
+    app: paatam
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/launch-stage: GA
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "1"
+        autoscaling.knative.dev/maxScale: "5"
+        run.googleapis.com/cpu-throttling: "false"
+        run.googleapis.com/startup-cpu-boost: "true"
+        run.googleapis.com/execution-environment: gen2
+        # Direct VPC egress so both containers reach AlloyDB's private IP
+        run.googleapis.com/network-interfaces: '[{"network":"${VPC_NETWORK}","subnetwork":"${VPC_SUBNET}"}]'
+        run.googleapis.com/vpc-access-egress: private-ranges-only
+        run.googleapis.com/container-dependencies: '{"api":["postgrest"]}'
+    spec:
+      serviceAccountName: ${API_SA}
+      timeoutSeconds: 900
+      containerConcurrency: 40
+      containers:
+        - name: api
+          image: ${API_IMAGE}
+          ports:
+            - containerPort: 8080
+          resources:
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: POSTGREST_URL
+              value: http://localhost:3000
+            - name: GCS_BUCKET
+              value: ${GCS_BUCKET}
+            - name: GOOGLE_CLOUD_PROJECT
+              value: ${PROJECT_ID}
+            - name: AI_BACKEND
+              value: vertex
+            - name: VERTEX_LOCATION
+              value: ${VERTEX_LOCATION}
+            - name: GEMINI_MODEL
+              value: ${GEMINI_MODEL}
+            - name: GEMINI_IMAGE_MODEL
+              value: ${GEMINI_IMAGE_MODEL}
+            - name: EMBEDDING_MODEL
+              value: gemini-embedding-001
+            - name: PRIMARY_AI_PROVIDER
+              value: gemini
+            - name: BQ_DATASET
+              value: ${BQ_DATASET}
+            - name: BQ_LOCATION
+              value: ${REGION}
+            - name: CORS_ORIGINS
+              value: ${WEB_URL}
+            - name: ALLOW_DB_RESET
+              value: "false"
+            - name: PGRST_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: paatam-pgrst-jwt-secret
+                  key: latest
+            - name: APP_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: paatam-app-jwt-secret
+                  key: latest
+${OPTIONAL_SECRET_ENV}
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            periodSeconds: 5
+            failureThreshold: 24
+        - name: postgrest
+          image: ${POSTGREST_IMAGE}
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          env:
+            # Sidecar ports are not exposed outside the instance; only the api container gets traffic.
+            - name: PGRST_SERVER_HOST
+              value: "*4"
+            - name: PGRST_SERVER_PORT
+              value: "3000"
+            - name: PGRST_DB_SCHEMAS
+              value: public
+            - name: PGRST_DB_ANON_ROLE
+              value: anon
+            - name: PGRST_DB_POOL
+              value: "10"
+            - name: PGRST_DB_MAX_ROWS
+              value: "5000"
+            - name: PGRST_ADMIN_SERVER_PORT
+              value: "3001"
+            - name: PGRST_DB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: paatam-pgrst-db-uri
+                  key: latest
+            - name: PGRST_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: paatam-pgrst-jwt-secret
+                  key: latest
+          startupProbe:
+            httpGet:
+              path: /ready
+              port: 3001
+            periodSeconds: 3
+            failureThreshold: 40

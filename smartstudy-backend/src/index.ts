@@ -2,7 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
-import { supabase } from './db/supabase.js';
+import { supabase, isDbConfigured, dataBackend, openStoredFile, FILE_ROUTE_PREFIX } from './db/supabase.js';
+import { geminiGenerateContent, isGeminiConfigured, describeGeminiBackend } from './services/geminiClient.js';
 import { uploadsDir } from './middleware/upload.js';
 import { getConfiguredGeminiModel } from './services/aiService.js';
 
@@ -70,7 +71,7 @@ if (uploadsDir && uploadsDir.length > 0) {
 }
 
 const isSupabaseConfigured = () => {
-  return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY && !process.env.SUPABASE_URL.includes('your-project'));
+  return isDbConfigured();
 };
 
 // -------------------------------------------------------------
@@ -82,7 +83,9 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     message: 'PAATAM.AI Backend Active (Enterprise School Management + AI Engine)',
     primaryProvider: process.env.PRIMARY_AI_PROVIDER || 'gemini',
-    geminiConfigured: Boolean(process.env.GEMINI_API_KEY),
+    geminiConfigured: isGeminiConfigured(),
+    ai: describeGeminiBackend(),
+    dataBackend,
     geminiModel: getConfiguredGeminiModel(),
     sarvamConfigured: Boolean(process.env.SARVAM_API_KEY),
     sarvamChatModel: process.env.SARVAM_CHAT_MODEL || 'sarvam-105b',
@@ -91,17 +94,13 @@ app.get('/api/health', (req, res) => {
 });
 
 app.get('/api/test-models', async (req, res) => {
-  const geminiKey = process.env.GEMINI_API_KEY || '';
+  const geminiKey = isGeminiConfigured();
   const results: any = { gemini: {} };
 
   if (geminiKey) {
     try {
       const modelName = getConfiguredGeminiModel();
-      const resGemini = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: 'Ping test' }] }] })
-      });
+      const resGemini = await geminiGenerateContent(modelName, { contents: [{ parts: [{ text: 'Ping test' }] }] });
       results.gemini.status = resGemini.status;
       results.gemini.model = modelName;
       if (resGemini.ok) {
@@ -114,13 +113,16 @@ app.get('/api/test-models', async (req, res) => {
       results.gemini.error = e.message;
     }
   } else {
-    results.gemini.status = 'GEMINI_API_KEY missing';
+    results.gemini.status = 'Gemini not configured (AI_BACKEND=vertex or GEMINI_API_KEY)';
   }
 
   res.json(results);
 });
 
 app.delete('/api/clear', async (req, res) => {
+  if (process.env.ALLOW_DB_RESET !== 'true') {
+    return res.status(403).json({ success: false, message: 'Database reset is disabled on this deployment (set ALLOW_DB_RESET=true to enable).' });
+  }
   try {
     console.log(`\n🧹 [DATABASE RESET] Received request to clear all Supabase tables...`);
     if (isSupabaseConfigured()) {
@@ -154,6 +156,24 @@ app.delete('/api/clear', async (req, res) => {
 // -------------------------------------------------------------
 // Mount Modular API Routers
 // -------------------------------------------------------------
+// Uploaded files (Cloud Storage), streamed back so the bucket can stay private
+app.get(`${FILE_ROUTE_PREFIX}/*path`, async (req, res) => {
+  try {
+    const objectPath = decodeURIComponent(req.path.slice(FILE_ROUTE_PREFIX.length + 1));
+    const file = openStoredFile(objectPath);
+    if (!file) return res.status(404).json({ success: false, message: 'Not found' });
+    const [meta] = await file.getMetadata();
+    res.setHeader('Content-Type', String(meta.contentType || 'application/octet-stream'));
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    file.createReadStream()
+      .on('error', () => { if (!res.headersSent) res.status(404).end(); else res.end(); })
+      .pipe(res);
+  } catch (err: any) {
+    const code = err?.code === 404 ? 404 : 500;
+    res.status(code).json({ success: false, message: code === 404 ? 'Not found' : 'Could not read file' });
+  }
+});
+
 app.use('/api', authRoutes);
 app.use('/api', corporateRoutes);
 app.use('/api', academicRoutes);

@@ -11,6 +11,7 @@ import {
 } from './sarvamService.js';
 import { aiGateway } from './aiGateway/index.js';
 import { uploadImageToSupabase } from '../db/supabase.js';
+import { geminiCredential, geminiGenerateContent, geminiEmbed } from './geminiClient.js';
 dotenv.config();
 
 export interface QuestionStimulus {
@@ -68,7 +69,7 @@ export interface VisionEvaluationResult {
   questionEvaluations?: QuestionEvaluation[];
 }
 
-const getGeminiKey = () => (process.env.GEMINI_API_KEY || '').trim();
+const getGeminiKey = () => geminiCredential();
 export const getConfiguredGeminiModel = () => (process.env.GEMINI_MODEL || 'gemini-3.6-flash').trim();
 
 /**
@@ -119,12 +120,7 @@ export async function callGemini36Api(
 
     try {
       console.log(`🤖 [GEMINI 3.6] Requesting completion (${modelName}) [Attempt ${attempt}/${maxRetries}, Timeout ${Math.round(timeoutMs / 1000)}s]...`);
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${geminiKey}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+      const res = await geminiGenerateContent(modelName, ({
           contents: [{ parts }],
           generationConfig: {
             maxOutputTokens: 32768,
@@ -133,9 +129,7 @@ export async function callGemini36Api(
               thinkingBudget: 0
             }
           }
-        }),
-        signal: controller.signal
-      });
+        }), { signal: controller.signal });
 
       if (res.ok) {
         const data = await res.json() as any;
@@ -206,25 +200,9 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 
   if (geminiKey && !geminiKey.includes('your_gemini_api_key')) {
     try {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${geminiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(4000),
-        body: JSON.stringify({
-          model: 'models/gemini-embedding-001',
-          content: { parts: [{ text: cleanText }] }
-        })
-      });
-
-      if (res.ok) {
-        const data = await res.json() as any;
-        const rawVector = data?.embedding?.values;
-        if (Array.isArray(rawVector) && rawVector.length > 0) {
-          return normalizeToDimensions(rawVector, 1536);
-        }
-      } else {
-        const errText = await res.text();
-        console.warn(`⚠️ [GEMINI EMBEDDING] API Notice (${res.status}): ${errText.substring(0, 200)}`);
+      const rawVector = await geminiEmbed(cleanText, { dimensions: 1536, timeoutMs: 15000 });
+      if (Array.isArray(rawVector) && rawVector.length > 0) {
+        return normalizeToDimensions(rawVector, 1536);
       }
     } catch (err) {
       console.warn('⚠️ [GEMINI EMBEDDING] Fetch exception:', err);
@@ -2028,10 +2006,7 @@ export async function generateQuestionImageOrDiagram(
   if (geminiKey && !geminiKey.includes('your_gemini_api_key')) {
     try {
       console.log(`🎨 [AI IMAGE ENGINE] Generating grounded image for: "${visualGoal.substring(0, 60)}..." (${cleanSubject})`);
-      const imgRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${geminiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const imgRes = await geminiGenerateContent(process.env.GEMINI_IMAGE_MODEL || 'gemini-2.5-flash-image', ({
           contents: [
             {
               parts: [
@@ -2041,8 +2016,7 @@ export async function generateQuestionImageOrDiagram(
               ]
             }
           ]
-        })
-      });
+        }));
 
       if (imgRes.ok) {
         const imgData = await imgRes.json() as any;

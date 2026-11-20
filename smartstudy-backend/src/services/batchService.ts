@@ -4,7 +4,7 @@ import { getConfiguredGeminiModel } from './aiService.js';
 import { expandPdfFilesToImages } from './pdfRasterService.js';
 import { performOcrPages } from './ocrService.js';
 import { isHindiOrTelugu } from './sarvamService.js';
-import { supabase, uploadImageToSupabase } from '../db/supabase.js';
+import { supabase, uploadImageToSupabase, isDbConfigured } from '../db/supabase.js';
 import { detectAndSplitStudentSubmissions, formatStudentDisplayName, isSameStudent, runWithConcurrency, SplitProgressUpdate } from './studentBoundaryService.js';
 
 export interface BatchItemFile {
@@ -40,7 +40,7 @@ export interface BatchJob {
 const batchJobs: Record<string, BatchJob> = {};
 
 const isSupabaseConfigured = () => {
-  return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY && !process.env.SUPABASE_URL.includes('your-project'));
+  return isDbConfigured();
 };
 
 /**

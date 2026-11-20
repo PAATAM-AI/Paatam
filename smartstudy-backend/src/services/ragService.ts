@@ -2,7 +2,7 @@ import * as pdfParseModule from 'pdf-parse';
 import AdmZip from 'adm-zip';
 import fs from 'fs';
 import path from 'path';
-import { supabase } from '../db/supabase.js';
+import { supabase, isDbConfigured } from '../db/supabase.js';
 import { 
   generateEmbedding, 
   generateQuestionsFromTextbook, 
@@ -311,7 +311,7 @@ Key Learning Objectives: Master core terminology, understand foundational theori
       }
     }
 
-    if (process.env.SUPABASE_URL && !process.env.SUPABASE_URL.includes('your-project')) {
+    if (isDbConfigured()) {
       console.log(`💾 Inserting ${records.length} records into Supabase textbook_embeddings table in batches...`);
       // Clear existing chunks for this class
       await supabase.from('textbook_embeddings').delete().eq('class_name', className);
@@ -341,7 +341,7 @@ Key Learning Objectives: Master core terminology, understand foundational theori
  * Fetch indexed curriculum topics for a class/subject
  */
 export async function getCurriculumTopics(className: string): Promise<any[]> {
-  if (!process.env.SUPABASE_URL || process.env.SUPABASE_URL.includes('your-project')) {
+  if (!isDbConfigured()) {
     return [];
   }
   try {
@@ -367,7 +367,7 @@ export async function getCurriculumTopics(className: string): Promise<any[]> {
  * Save / Update curriculum topics for a class/subject
  */
 export async function saveCurriculumTopics(className: string, topics: any[]): Promise<any[]> {
-  if (!process.env.SUPABASE_URL || process.env.SUPABASE_URL.includes('your-project')) {
+  if (!isDbConfigured()) {
     return topics;
   }
   try {
@@ -403,7 +403,7 @@ export async function saveCurriculumTopics(className: string, topics: any[]): Pr
  * Delete a single curriculum topic by ID
  */
 export async function deleteCurriculumTopic(id: string): Promise<boolean> {
-  if (!process.env.SUPABASE_URL || process.env.SUPABASE_URL.includes('your-project')) {
+  if (!isDbConfigured()) {
     return true;
   }
   try {
@@ -423,7 +423,7 @@ export async function deleteCurriculumTopic(id: string): Promise<boolean> {
  * Delete all curriculum topics for a class/subject
  */
 export async function deleteAllCurriculumTopics(className: string): Promise<boolean> {
-  if (!process.env.SUPABASE_URL || process.env.SUPABASE_URL.includes('your-project')) {
+  if (!isDbConfigured()) {
     return true;
   }
   try {
@@ -546,7 +546,7 @@ export async function ingestChapterDocument(
 
   // Save to curriculum_chapters table in Supabase
   let savedChapterId: string | undefined = undefined;
-  if (process.env.SUPABASE_URL && !process.env.SUPABASE_URL.includes('your-project')) {
+  if (isDbConfigured()) {
     try {
       const payload: any = {
         class_name: className,
@@ -578,7 +578,7 @@ export async function ingestChapterDocument(
 
   // Vectorize and insert into Supabase pgvector
   let totalInserted = 0;
-  if (process.env.SUPABASE_URL && !process.env.SUPABASE_URL.includes('your-project')) {
+  if (isDbConfigured()) {
     try {
       // SAFE DELETE: Delete ONLY existing chunks for this specific chapter! Never wipe other chapters!
       await supabase
@@ -662,7 +662,7 @@ export async function ingestChapterDocument(
  * Fetch all ingested chapters & subtopics for a subject/class
  */
 export async function getSubjectChapters(className: string, subjectName?: string): Promise<CurriculumChapterRecord[]> {
-  if (!process.env.SUPABASE_URL || process.env.SUPABASE_URL.includes('your-project')) {
+  if (!isDbConfigured()) {
     return [];
   }
   try {
@@ -710,7 +710,7 @@ export async function getSubjectChapters(className: string, subjectName?: string
  * Delete a single chapter and its vector chunks (never touches other chapters)
  */
 export async function deleteSubjectChapter(chapterIdOrTitle: string, className?: string): Promise<boolean> {
-  if (!process.env.SUPABASE_URL || process.env.SUPABASE_URL.includes('your-project')) {
+  if (!isDbConfigured()) {
     return true;
   }
   try {
@@ -770,7 +770,7 @@ export async function updateSubjectChapter(
   newNumber?: number,
   className?: string
 ): Promise<{ success: boolean; message: string; chapter?: CurriculumChapterRecord }> {
-  if (!process.env.SUPABASE_URL || process.env.SUPABASE_URL.includes('your-project')) {
+  if (!isDbConfigured()) {
     return { success: true, message: 'Updated locally.' };
   }
   try {
@@ -948,7 +948,7 @@ export async function generateUnifiedExamPaper(params: {
 
   let gatheredChunks: string[] = [];
 
-  if (process.env.SUPABASE_URL && !process.env.SUPABASE_URL.includes('your-project')) {
+  if (isDbConfigured()) {
     try {
       console.log(`\n📚 [RAG VECTOR RETRIEVAL] Querying Supabase 'textbook_embeddings' for ${className}...`);
       let query = supabase
@@ -1231,7 +1231,7 @@ export async function ingestSyllabusDocument(
 
   // STAGE 3: Embed & Store in pgvector
   let totalInserted = 0;
-  if (process.env.SUPABASE_URL && !process.env.SUPABASE_URL.includes('your-project')) {
+  if (isDbConfigured()) {
     try {
       // Clear existing chunks for this class
       await supabase.from('textbook_embeddings').delete().eq('class_name', className);
@@ -1339,7 +1339,7 @@ export async function generateBlueprintExamPaper(
 
     // Retrieve topic-specific context
     let topicContext = '';
-    if (process.env.SUPABASE_URL && !process.env.SUPABASE_URL.includes('your-project')) {
+    if (isDbConfigured()) {
       try {
         const queryVector = await generateEmbedding(`${item.topicName} ${item.unitName || ''} ${className}`);
         const { data: matchedChunks } = await supabase.rpc('match_topic_textbook_chunks', {
@@ -1468,7 +1468,7 @@ export async function generateRagQuestions(
   let textbookContent = cachedTextbookText[className] || '';
 
   // If cachedTextbookText is empty for className, attempt to pull chunks from Supabase pgvector
-  if (!textbookContent && process.env.SUPABASE_URL && !process.env.SUPABASE_URL.includes('your-project')) {
+  if (!textbookContent && isDbConfigured()) {
     try {
       const { data: storedChunks } = await supabase
         .from('textbook_embeddings')
@@ -1538,7 +1538,7 @@ export async function evaluateStudentAnswerAgainstPdf(
 
   // 1. Vector Cosine Similarity Search & Context Retrieval
   try {
-    if (process.env.SUPABASE_URL && !process.env.SUPABASE_URL.includes('your-project')) {
+    if (isDbConfigured()) {
       
       // Generate 1536-dimensional vector embedding for the student OCR text / query
       const queryEmbedding = await generateEmbedding(ocrText || className);

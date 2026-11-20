@@ -1,0 +1,8 @@
+# Generic image build used by infra/deploy.sh (base images come through the Docker Hub cache)
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "--build-arg", "REGISTRY=${_REGISTRY}", "-t", "${_IMAGE}", "."]
+images: ["${_IMAGE}"]
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
