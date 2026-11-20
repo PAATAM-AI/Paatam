@@ -6,6 +6,12 @@
 #   bash infra/migrate-db.sh --from-code  # no Supabase: create the schema from infra/sql/schema-from-code.sql
 #
 # Uses Docker images for pg_dump/psql (Cloud Shell has Docker) and the AlloyDB Auth Proxy.
+#
+# SAFETY: Supabase is the live source of truth and is only ever READ.
+#   - The only commands sent to Supabase are pg_dump (always runs in a READ ONLY transaction)
+#     and SELECT count(*) wrapped in BEGIN READ ONLY ... ROLLBACK (the server rejects any write).
+#   - Every CREATE / restore / GRANT / ALTER below targets AlloyDB only, through the local
+#     Auth Proxy (127.0.0.1:5433); the Supabase URL is never passed to those commands.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source infra/config.sh
@@ -62,8 +68,13 @@ else
   echo "Supabase dashboard → Connect → Session pooler (IPv4) → URI, with your database password filled in."
   read -rsp "Paste it here (input hidden): " SUPABASE_DB_URL; echo
   [ -n "$SUPABASE_DB_URL" ] || { echo "No connection string given"; exit 1; }
+  # Guard: the source must be the remote Supabase database, never the local AlloyDB proxy.
+  case "$SUPABASE_DB_URL" in
+    *@127.0.0.1*|*@localhost*|*"port=${PROXY_PORT}"*|*":${PROXY_PORT}/"*)
+      echo "Refusing: that connection string points at this machine (the AlloyDB target), not Supabase."; exit 1 ;;
+  esac
 
-  log "Dumping schema 'public' from Supabase"
+  log "Dumping schema 'public' from Supabase (read-only)"
   docker run --rm --network host -e SRC="$SUPABASE_DB_URL" -v "$WORK:/work" "$PG_IMAGE" \
     sh -c 'pg_dump "$SRC" --schema=public --format=custom --no-owner --no-privileges \
            --no-publications --no-subscriptions --file=/work/supabase.dump'
@@ -84,7 +95,9 @@ else
   TABLES=$(target "$DB_NAME" -tAc "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY 1")
   printf '%-28s %10s %10s\n' table supabase alloydb
   for t in $TABLES; do
-    src=$(docker run --rm --network host -e SRC="$SUPABASE_DB_URL" "$PG_IMAGE" psql "$SRC" -tAc "SELECT count(*) FROM public.\"$t\"" 2>/dev/null || echo '?')
+    src=$(docker run --rm --network host -e SRC="$SUPABASE_DB_URL" "$PG_IMAGE" \
+      psql "$SRC" -tA -v ON_ERROR_STOP=1 -c "BEGIN READ ONLY" -c "SELECT count(*) FROM public.\"$t\"" -c "ROLLBACK" 2>/dev/null \
+      | grep -E '^[0-9]+$' || echo '?')
     dst=$(target "$DB_NAME" -tAc "SELECT count(*) FROM public.\"$t\"")
     flag=""; [ "$src" = "$dst" ] || flag="  ← differs"
     printf '%-28s %10s %10s%s\n' "$t" "$src" "$dst" "$flag"
