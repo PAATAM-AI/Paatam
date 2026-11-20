@@ -28,10 +28,11 @@ log "Starting the AlloyDB Auth Proxy on 127.0.0.1:${PROXY_PORT}"
 PROXY_BIN="$HOME/.local/bin/alloydb-auth-proxy"
 if [ ! -x "$PROXY_BIN" ]; then
   mkdir -p "$(dirname "$PROXY_BIN")"
-  PROXY_VERSION="$(curl -s "https://storage.googleapis.com/alloydb-auth-proxy?delimiter=/&prefix=v1." \
+  echo "Downloading the AlloyDB Auth Proxy (about 36 MB)..."
+  PROXY_VERSION="$(curl -s --max-time 20 "https://storage.googleapis.com/alloydb-auth-proxy?delimiter=/&prefix=v1." \
     | grep -oE 'v1\.[0-9]+\.[0-9]+/' | sort -V | tail -1 | tr -d /)"
   PROXY_VERSION="${PROXY_VERSION:-v1.18.0}"
-  curl -sSfL -o "$PROXY_BIN" \
+  curl -fL --progress-bar --max-time 300 --retry 3 -o "$PROXY_BIN" \
     "https://storage.googleapis.com/alloydb-auth-proxy/${PROXY_VERSION}/alloydb-auth-proxy.linux.amd64"
   chmod +x "$PROXY_BIN"
   ok "AlloyDB Auth Proxy ${PROXY_VERSION} downloaded"
