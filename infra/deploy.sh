@@ -7,8 +7,8 @@ cd "$(dirname "$0")/.."
 source infra/config.sh
 
 TAG="$(git rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M)"
-API_IMAGE="${API_IMAGE:-${IMAGE_BASE}/paatam-api:${TAG}}"
-WEB_IMAGE="${WEB_IMAGE:-${IMAGE_BASE}/paatam-web:${TAG}}"
+API_IMAGE="${API_IMAGE:-${IMAGE_BASE}/api:${TAG}}"
+WEB_IMAGE="${WEB_IMAGE:-${IMAGE_BASE}/web:${TAG}}"
 
 if [ "${SKIP_BUILD:-0}" = "1" ]; then
   log "1/5 Using images built by the Cloud Build trigger"
@@ -35,50 +35,50 @@ add_optional() { # secret-name ENV_NAME
 "
   fi
 }
-add_optional paatam-sarvam-api-key SARVAM_API_KEY
-add_optional paatam-meta-whatsapp-token META_WHATSAPP_TOKEN
-add_optional paatam-meta-phone-number-id META_PHONE_NUMBER_ID
+add_optional "${SECRET_PREFIX}-sarvam-api-key" SARVAM_API_KEY
+add_optional "${SECRET_PREFIX}-meta-whatsapp-token" META_WHATSAPP_TOKEN
+add_optional "${SECRET_PREFIX}-meta-phone-number-id" META_PHONE_NUMBER_ID
 
-WEB_URL="$(gcloud run services describe paatam-web --region="$REGION" --format='value(status.url)' 2>/dev/null || true)"
+WEB_URL="$(gcloud run services describe "$WEB_SERVICE" --region="$REGION" --format='value(status.url)' 2>/dev/null || true)"
 WEB_URL="${WEB_URL:-http://localhost:5173}"
 
-log "2/5 Deploying paatam-api (API + PostgREST sidecar → AlloyDB)"
-export API_IMAGE POSTGREST_IMAGE API_SA GCS_BUCKET PROJECT_ID VERTEX_LOCATION GEMINI_MODEL \
+log "2/5 Deploying ${API_SERVICE} (API + PostgREST sidecar → AlloyDB)"
+export API_SERVICE SECRET_PREFIX API_IMAGE POSTGREST_IMAGE API_SA GCS_BUCKET PROJECT_ID VERTEX_LOCATION GEMINI_MODEL \
        GEMINI_IMAGE_MODEL BQ_DATASET REGION WEB_URL VPC_NETWORK VPC_SUBNET OPTIONAL_SECRET_ENV
 if command -v envsubst >/dev/null; then
-  envsubst < infra/cloudrun/api-service.yaml > /tmp/paatam-api-service.yaml
+  envsubst < infra/cloudrun/api-service.yaml > /tmp/${API_SERVICE}.yaml
 else
   python3 -c 'import os,sys; sys.stdout.write(os.path.expandvars(sys.stdin.read()))' \
-    < infra/cloudrun/api-service.yaml > /tmp/paatam-api-service.yaml
+    < infra/cloudrun/api-service.yaml > /tmp/${API_SERVICE}.yaml
 fi
-gcloud run services replace /tmp/paatam-api-service.yaml --region="$REGION" --quiet
-API_URL="$(gcloud run services describe paatam-api --region="$REGION" --format='value(status.url)')"
+gcloud run services replace /tmp/${API_SERVICE}.yaml --region="$REGION" --quiet
+API_URL="$(gcloud run services describe "$API_SERVICE" --region="$REGION" --format='value(status.url)')"
 
 make_public() { # allow browser access; falls back when an org policy blocks allUsers
   gcloud run services add-iam-policy-binding "$1" --region="$REGION" \
     --member=allUsers --role=roles/run.invoker >/dev/null 2>&1 || \
   gcloud run services update "$1" --region="$REGION" --no-invoker-iam-check --quiet >/dev/null
 }
-make_public paatam-api
+make_public "$API_SERVICE"
 ok "API ${API_URL}"
 
-log "3/5 Deploying paatam-web (nginx; /api proxied to the API)"
-gcloud run deploy paatam-web --image "$WEB_IMAGE" --region="$REGION" --port=8080 \
+log "3/5 Deploying ${WEB_SERVICE} (nginx; /api proxied to the API)"
+gcloud run deploy "$WEB_SERVICE" --image "$WEB_IMAGE" --region="$REGION" --port=8080 \
   --set-env-vars "API_URL=${API_URL}" --cpu=1 --memory=512Mi --min-instances=0 --quiet
-make_public paatam-web
-WEB_URL="$(gcloud run services describe paatam-web --region="$REGION" --format='value(status.url)')"
+make_public "$WEB_SERVICE"
+WEB_URL="$(gcloud run services describe "$WEB_SERVICE" --region="$REGION" --format='value(status.url)')"
 ok "Web ${WEB_URL}"
 
 log "4/5 Hourly AlloyDB → BigQuery sync (Cloud Scheduler)"
 SYNC_URI="${API_URL}/api/analytics/bigquery/sync"
-if gcloud scheduler jobs describe paatam-bigquery-sync --location="$REGION" >/dev/null 2>&1; then
-  gcloud scheduler jobs update http paatam-bigquery-sync --location="$REGION" --schedule="17 * * * *" \
+if gcloud scheduler jobs describe "$SCHEDULER_JOB" --location="$REGION" >/dev/null 2>&1; then
+  gcloud scheduler jobs update http "$SCHEDULER_JOB" --location="$REGION" --schedule="17 * * * *" \
     --uri="$SYNC_URI" --http-method=POST --attempt-deadline=600s --quiet >/dev/null
 else
-  gcloud scheduler jobs create http paatam-bigquery-sync --location="$REGION" --schedule="17 * * * *" \
+  gcloud scheduler jobs create http "$SCHEDULER_JOB" --location="$REGION" --schedule="17 * * * *" \
     --uri="$SYNC_URI" --http-method=POST --attempt-deadline=600s --quiet >/dev/null
 fi
-ok "scheduler job paatam-bigquery-sync"
+ok "scheduler job ${SCHEDULER_JOB}"
 
 log "5/5 Smoke tests"
 check() { # name, curl args...
@@ -100,5 +100,5 @@ cat <<EOF
 Deployed.
   Web app : ${WEB_URL}
   API     : ${API_URL}
-  Logs    : gcloud run services logs read paatam-api --region=${REGION} --limit=100
+  Logs    : gcloud run services logs read ${API_SERVICE} --region=${REGION} --limit=100
 EOF

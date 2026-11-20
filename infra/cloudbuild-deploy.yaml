@@ -1,9 +1,9 @@
 # Cloud Build trigger config: on every push to branch "gcp", build both images and deploy.
 # Trigger settings: event = push to branch ^gcp$, config = infra/cloudbuild-deploy.yaml,
-# region = asia-south1, service account = paatam-deployer@<PROJECT_ID>.iam.gserviceaccount.com
+# region = asia-south1, service account = paatam-dev-deployer@<PROJECT_ID>.iam.gserviceaccount.com
 substitutions:
   _REGION: asia-south1
-  _IMAGES: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/paatam
+  _IMAGES: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/paatam-dev
   _DOCKERHUB: ${_REGION}-docker.pkg.dev/${PROJECT_ID}/dockerhub
 options:
   dynamicSubstitutions: true
@@ -14,19 +14,19 @@ steps:
   - id: build-api
     name: gcr.io/cloud-builders/docker
     waitFor: ["-"]
-    args: ["build", "--build-arg", "REGISTRY=${_DOCKERHUB}", "-t", "${_IMAGES}/paatam-api:${SHORT_SHA}", "smartstudy-backend"]
+    args: ["build", "--build-arg", "REGISTRY=${_DOCKERHUB}", "-t", "${_IMAGES}/api:${SHORT_SHA}", "smartstudy-backend"]
   - id: build-web
     name: gcr.io/cloud-builders/docker
     waitFor: ["-"]
-    args: ["build", "--build-arg", "REGISTRY=${_DOCKERHUB}", "-t", "${_IMAGES}/paatam-web:${SHORT_SHA}", "smartstudy-frontend"]
+    args: ["build", "--build-arg", "REGISTRY=${_DOCKERHUB}", "-t", "${_IMAGES}/web:${SHORT_SHA}", "smartstudy-frontend"]
   - id: push-api
     name: gcr.io/cloud-builders/docker
     waitFor: ["build-api"]
-    args: ["push", "${_IMAGES}/paatam-api:${SHORT_SHA}"]
+    args: ["push", "${_IMAGES}/api:${SHORT_SHA}"]
   - id: push-web
     name: gcr.io/cloud-builders/docker
     waitFor: ["build-web"]
-    args: ["push", "${_IMAGES}/paatam-web:${SHORT_SHA}"]
+    args: ["push", "${_IMAGES}/web:${SHORT_SHA}"]
   - id: deploy
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     waitFor: ["push-api", "push-web"]
@@ -35,6 +35,6 @@ steps:
       - PROJECT=${PROJECT_ID}
       - REGION=${_REGION}
       - SKIP_BUILD=1
-      - API_IMAGE=${_IMAGES}/paatam-api:${SHORT_SHA}
-      - WEB_IMAGE=${_IMAGES}/paatam-web:${SHORT_SHA}
+      - API_IMAGE=${_IMAGES}/api:${SHORT_SHA}
+      - WEB_IMAGE=${_IMAGES}/web:${SHORT_SHA}
     args: ["infra/deploy.sh"]

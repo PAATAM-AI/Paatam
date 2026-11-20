@@ -3,7 +3,7 @@
 apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
-  name: paatam-api
+  name: ${API_SERVICE}
   labels:
     app: paatam
   annotations:
@@ -67,12 +67,12 @@ spec:
             - name: PGRST_JWT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: paatam-pgrst-jwt-secret
+                  name: ${SECRET_PREFIX}-pgrst-jwt-secret
                   key: latest
             - name: APP_JWT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: paatam-app-jwt-secret
+                  name: ${SECRET_PREFIX}-app-jwt-secret
                   key: latest
 ${OPTIONAL_SECRET_ENV}
           startupProbe:
@@ -106,12 +106,12 @@ ${OPTIONAL_SECRET_ENV}
             - name: PGRST_DB_URI
               valueFrom:
                 secretKeyRef:
-                  name: paatam-pgrst-db-uri
+                  name: ${SECRET_PREFIX}-pgrst-db-uri
                   key: latest
             - name: PGRST_JWT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: paatam-pgrst-jwt-secret
+                  name: ${SECRET_PREFIX}-pgrst-jwt-secret
                   key: latest
           startupProbe:
             httpGet:

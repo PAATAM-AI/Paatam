@@ -8,6 +8,7 @@
 # Uses Docker images for pg_dump/psql (Cloud Shell has Docker) and the AlloyDB Auth Proxy.
 #
 # SAFETY: Supabase is the live source of truth and is only ever READ.
+#   - On AlloyDB it only writes to its own database ${DB_NAME}; other databases are not touched.
 #   - The only commands sent to Supabase are pg_dump (always runs in a READ ONLY transaction)
 #     and SELECT count(*) wrapped in BEGIN READ ONLY ... ROLLBACK (the server rejects any write).
 #   - Every CREATE / restore / GRANT / ALTER below targets AlloyDB only, through the local
@@ -20,27 +21,27 @@ MODE="${1:-supabase}"
 PG_IMAGE="postgres:17"   # client tools only; newer pg_dump reads older servers
 WORK="$(mktemp -d)"
 PROXY_PORT=5433
-trap 'docker stop paatam-alloydb-proxy >/dev/null 2>&1 || true; rm -rf "$WORK"' EXIT
+trap 'docker stop "${APP}-alloydb-proxy" >/dev/null 2>&1 || true; rm -rf "$WORK"' EXIT
 
 log "Starting the AlloyDB Auth Proxy on 127.0.0.1:${PROXY_PORT}"
 # Official proxy image; authenticates with your Cloud Shell login (token valid for 1 hour).
-docker run -d --rm --name paatam-alloydb-proxy --network host \
+docker run -d --rm --name "${APP}-alloydb-proxy" --network host \
   gcr.io/alloydb-connectors/alloydb-auth-proxy:latest \
   "$INSTANCE_URI" --public-ip --address 127.0.0.1 --port "$PROXY_PORT" \
   --token "$(gcloud auth print-access-token)" >/dev/null
 PROXY_PID=""
 for _ in $(seq 1 30); do
-  docker logs paatam-alloydb-proxy 2>&1 | grep -q "ready for new connections" && break
+  docker logs "${APP}-alloydb-proxy" 2>&1 | grep -q "ready for new connections" && break
   sleep 2
 done
-docker logs paatam-alloydb-proxy 2>&1 | grep -q "ready for new connections" || {
-  docker logs paatam-alloydb-proxy; echo "Auth Proxy did not start"; exit 1; }
+docker logs "${APP}-alloydb-proxy" 2>&1 | grep -q "ready for new connections" || {
+  docker logs "${APP}-alloydb-proxy"; echo "Auth Proxy did not start"; exit 1; }
 
-PGPASS="$(secret_value paatam-db-postgres-password)"
+PGPASS="$(secret_value "${SECRET_PREFIX}-db-admin-password")"
 target() { # psql against AlloyDB; usage: target <db> [psql args...]
   local db="$1"; shift
   docker run --rm -i --network host -e PGPASSWORD="$PGPASS" -v "$WORK:/work" -v "$PWD/infra/sql:/sql:ro" "$PG_IMAGE" \
-    psql "host=127.0.0.1 port=${PROXY_PORT} user=postgres dbname=${db} sslmode=disable" -v ON_ERROR_STOP=1 "$@"
+    psql "host=127.0.0.1 port=${PROXY_PORT} user=${DB_ADMIN_USER} dbname=${db} sslmode=disable" -v ON_ERROR_STOP=1 "$@"
 }
 
 log "Creating database ${DB_NAME} and extensions"
@@ -85,7 +86,7 @@ else
     'pg_restore -l /work/supabase.dump | grep -vE " POLICY | ROW SECURITY |SCHEMA - public" > /work/restore.list'
   docker run --rm --network host -e PGPASSWORD="$PGPASS" -v "$WORK:/work" "$PG_IMAGE" \
     pg_restore --no-owner --no-privileges --use-list=/work/restore.list \
-      --dbname="host=127.0.0.1 port=${PROXY_PORT} user=postgres dbname=${DB_NAME} sslmode=disable" \
+      --dbname="host=127.0.0.1 port=${PROXY_PORT} user=${DB_ADMIN_USER} dbname=${DB_NAME} sslmode=disable" \
       /work/supabase.dump 2>"$WORK/restore.err" || true
   if [ -s "$WORK/restore.err" ]; then
     warn "pg_restore reported (often harmless) messages:"; grep -E "error|ERROR" "$WORK/restore.err" | head -20 || true
@@ -106,7 +107,7 @@ else
 fi
 
 log "PostgREST roles and grants"
-target "$DB_NAME" -q -v authenticator_password="$(secret_value paatam-pgrst-authenticator-password)" -f /sql/postgrest-roles.sql
+target "$DB_NAME" -q -v authenticator_password="$(secret_value "${SECRET_PREFIX}-pgrst-authenticator-password")" -f /sql/postgrest-roles.sql
 ok "roles ready"
 
 log "AlloyDB ScaNN vector index (falls back to the existing HNSW/none if not available)"

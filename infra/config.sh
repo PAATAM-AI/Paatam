@@ -11,20 +11,30 @@ GEMINI_IMAGE_MODEL="${GEMINI_IMAGE_MODEL:-gemini-2.5-flash-image}"
 ALLOYDB_CLUSTER="${ALLOYDB_CLUSTER:-paatam-cluster}"
 ALLOYDB_INSTANCE="${ALLOYDB_INSTANCE:-paatam-primary}"
 ALLOYDB_CPUS="${ALLOYDB_CPUS:-2}"
-DB_NAME="${DB_NAME:-paatam}"
+# Everything this replica creates is named "${APP}..." so it can live next to other Paatam
+# resources in the same project (e.g. an earlier prototype) without replacing them.
+APP="${APP:-paatam-dev}"                        # Cloud Run services, accounts, secrets, repo, scheduler
+APP_U="${APP//-/_}"                             # same, for database / BigQuery names
+DB_NAME="${DB_NAME:-${APP_U}}"
+DB_ADMIN_USER="${DB_ADMIN_USER:-${APP_U}_admin}"  # superuser created for this replica (existing users untouched)
 VPC_NETWORK="${VPC_NETWORK:-default}"
 VPC_SUBNET="${VPC_SUBNET:-default}"
 
-BQ_DATASET="${BQ_DATASET:-paatam_analytics}"
-AR_REPO="${AR_REPO:-paatam}"
-API_SA_NAME="${API_SA_NAME:-paatam-api-sa}"
+BQ_DATASET="${BQ_DATASET:-${APP_U}_analytics}"
+AR_REPO="${AR_REPO:-${APP}}"
+API_SA_NAME="${API_SA_NAME:-${APP}-api}"
+DEPLOYER_SA_NAME="${DEPLOYER_SA_NAME:-${APP}-deployer}"
+API_SERVICE="${API_SERVICE:-${APP}-api}"
+WEB_SERVICE="${WEB_SERVICE:-${APP}-web}"
+SCHEDULER_JOB="${SCHEDULER_JOB:-${APP}-bigquery-sync}"
+SECRET_PREFIX="${SECRET_PREFIX:-${APP}}"
 
 # Resolve the project id and number once (accepts either form in PROJECT)
 PROJECT_ID="$(gcloud projects describe "$PROJECT" --format='value(projectId)')"
 PROJECT_NUMBER="$(gcloud projects describe "$PROJECT" --format='value(projectNumber)')"
-GCS_BUCKET="${GCS_BUCKET:-${PROJECT_ID}-paatam-uploads}"
+GCS_BUCKET="${GCS_BUCKET:-${PROJECT_ID}-${APP}-uploads}"
 API_SA="${API_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
-DEPLOYER_SA="paatam-deployer@${PROJECT_ID}.iam.gserviceaccount.com"   # used by the Cloud Build trigger
+DEPLOYER_SA="${DEPLOYER_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"   # used by the Cloud Build trigger
 AR_HOST="${REGION}-docker.pkg.dev"
 IMAGE_BASE="${AR_HOST}/${PROJECT_ID}/${AR_REPO}"
 # Docker Hub images are pulled through an Artifact Registry remote repository (avoids Docker Hub rate limits)
