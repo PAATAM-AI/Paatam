@@ -18,24 +18,33 @@ cd "$(dirname "$0")/.."
 source infra/config.sh
 
 MODE="${1:-supabase}"
-PG_IMAGE="postgres:17"   # client tools only; newer pg_dump reads older servers
+PG_IMAGE="mirror.gcr.io/library/postgres:17"   # client tools only (Google mirror of Docker Hub); newer pg_dump reads older servers
 WORK="$(mktemp -d)"
 PROXY_PORT=5433
-trap 'docker stop "${APP}-alloydb-proxy" >/dev/null 2>&1 || true; rm -rf "$WORK"' EXIT
+trap 'kill "${PROXY_PID:-0}" 2>/dev/null || true; rm -rf "$WORK"' EXIT
 
 log "Starting the AlloyDB Auth Proxy on 127.0.0.1:${PROXY_PORT}"
-# Official proxy image; authenticates with your Cloud Shell login (token valid for 1 hour).
-docker run -d --rm --name "${APP}-alloydb-proxy" --network host \
-  gcr.io/alloydb-connectors/alloydb-auth-proxy:latest \
-  "$INSTANCE_URI" --public-ip --address 127.0.0.1 --port "$PROXY_PORT" \
-  --token "$(gcloud auth print-access-token)" >/dev/null
-PROXY_PID=""
+# Google's published proxy binary (small direct download); authenticates with your Cloud Shell login.
+PROXY_BIN="$HOME/.local/bin/alloydb-auth-proxy"
+if [ ! -x "$PROXY_BIN" ]; then
+  mkdir -p "$(dirname "$PROXY_BIN")"
+  PROXY_VERSION="$(curl -s "https://storage.googleapis.com/alloydb-auth-proxy?delimiter=/&prefix=v1." \
+    | grep -oE 'v1\.[0-9]+\.[0-9]+/' | sort -V | tail -1 | tr -d /)"
+  PROXY_VERSION="${PROXY_VERSION:-v1.18.0}"
+  curl -sSfL -o "$PROXY_BIN" \
+    "https://storage.googleapis.com/alloydb-auth-proxy/${PROXY_VERSION}/alloydb-auth-proxy.linux.amd64"
+  chmod +x "$PROXY_BIN"
+  ok "AlloyDB Auth Proxy ${PROXY_VERSION} downloaded"
+fi
+"$PROXY_BIN" "$INSTANCE_URI" --public-ip --address 127.0.0.1 --port "$PROXY_PORT" \
+  --token "$(gcloud auth print-access-token)" >"$WORK/proxy.log" 2>&1 &
+PROXY_PID=$!
 for _ in $(seq 1 30); do
-  docker logs "${APP}-alloydb-proxy" 2>&1 | grep -q "ready for new connections" && break
+  grep -q "ready for new connections" "$WORK/proxy.log" && break
   sleep 2
 done
-docker logs "${APP}-alloydb-proxy" 2>&1 | grep -q "ready for new connections" || {
-  docker logs "${APP}-alloydb-proxy"; echo "Auth Proxy did not start"; exit 1; }
+grep -q "ready for new connections" "$WORK/proxy.log" || { cat "$WORK/proxy.log"; echo "Auth Proxy did not start"; exit 1; }
+ok "proxy ready"
 
 PGPASS="$(secret_value "${SECRET_PREFIX}-db-admin-password")"
 target() { # psql against AlloyDB; usage: target <db> [psql args...]
