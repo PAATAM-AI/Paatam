@@ -1,0 +1,54 @@
+# One-off Supabase → AlloyDB migration inside Google's network (no Cloud Shell downloads).
+# Run from Cloud Shell (uploads nothing; the build clones the gcp branch itself):
+#   gcloud builds submit --no-source --region=asia-south1 --config=infra/cloudbuild-migrate.yaml \
+#     --service-account="projects/$PROJECT_ID/serviceAccounts/paatam-dev-api@$PROJECT_ID.iam.gserviceaccount.com"
+# Optional: --substitutions=_MODE=from-code   (empty schema instead of copying Supabase)
+#
+# Needs the secret paatam-dev-supabase-db-url (Supabase Session pooler URI with password),
+# created in Secret Manager. Runs as the replica's API service account (AlloyDB client +
+# secret accessor + log writer).
+substitutions:
+  _REGION: asia-south1
+  _APP: paatam-dev
+  _APP_U: paatam_dev
+  _CLUSTER: paatam-cluster
+  _INSTANCE: paatam-primary
+  _MODE: supabase
+options:
+  dynamicSubstitutions: true
+  logging: CLOUD_LOGGING_ONLY
+timeout: 3600s
+steps:
+  - id: clone
+    name: gcr.io/cloud-builders/git
+    args: ["clone", "--depth=1", "--branch=gcp", "https://github.com/PAATAM-AI/Paatam.git", "src"]
+  - id: proxy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -e
+        mkdir -p /workspace/bin
+        gcloud storage cp gs://alloydb-auth-proxy/v1.18.0/alloydb-auth-proxy.linux.amd64 /workspace/bin/alloydb-auth-proxy
+        chmod +x /workspace/bin/alloydb-auth-proxy
+        /workspace/bin/alloydb-auth-proxy --version
+  - id: migrate
+    name: mirror.gcr.io/library/postgres:17
+    dir: src
+    entrypoint: bash
+    env:
+      - INSTANCE_URI=projects/${PROJECT_ID}/locations/${_REGION}/clusters/${_CLUSTER}/instances/${_INSTANCE}
+      - DB_NAME=${_APP_U}
+      - DB_ADMIN_USER=${_APP_U}_admin
+      - MODE=${_MODE}
+    secretEnv: ["PGPASS", "AUTH_PW", "SUPABASE_DB_URL"]
+    args: ["infra/migrate-db-ci.sh"]
+availableSecrets:
+  secretManager:
+    - versionName: projects/${PROJECT_ID}/secrets/${_APP}-db-admin-password/versions/latest
+      env: PGPASS
+    - versionName: projects/${PROJECT_ID}/secrets/${_APP}-pgrst-authenticator-password/versions/latest
+      env: AUTH_PW
+    - versionName: projects/${PROJECT_ID}/secrets/${_APP}-supabase-db-url/versions/latest
+      env: SUPABASE_DB_URL
