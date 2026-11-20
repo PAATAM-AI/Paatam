@@ -24,6 +24,7 @@ PROJECT_ID="$(gcloud projects describe "$PROJECT" --format='value(projectId)')"
 PROJECT_NUMBER="$(gcloud projects describe "$PROJECT" --format='value(projectNumber)')"
 GCS_BUCKET="${GCS_BUCKET:-${PROJECT_ID}-paatam-uploads}"
 API_SA="${API_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+DEPLOYER_SA="paatam-deployer@${PROJECT_ID}.iam.gserviceaccount.com"   # used by the Cloud Build trigger
 AR_HOST="${REGION}-docker.pkg.dev"
 IMAGE_BASE="${AR_HOST}/${PROJECT_ID}/${AR_REPO}"
 # Docker Hub images are pulled through an Artifact Registry remote repository (avoids Docker Hub rate limits)

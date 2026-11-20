@@ -7,17 +7,21 @@ cd "$(dirname "$0")/.."
 source infra/config.sh
 
 TAG="$(git rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M)"
-API_IMAGE="${IMAGE_BASE}/paatam-api:${TAG}"
-WEB_IMAGE="${IMAGE_BASE}/paatam-web:${TAG}"
+API_IMAGE="${API_IMAGE:-${IMAGE_BASE}/paatam-api:${TAG}}"
+WEB_IMAGE="${WEB_IMAGE:-${IMAGE_BASE}/paatam-web:${TAG}}"
 
-log "1/5 Building images with Cloud Build (tag ${TAG})"
-build() { # dir image
-  gcloud builds submit "$1" --region="$REGION" --config=infra/cloudbuild.yaml --quiet \
-    --substitutions="_IMAGE=$2,_REGISTRY=${DOCKERHUB_PROXY}"
-}
-build smartstudy-backend "$API_IMAGE"
-build smartstudy-frontend "$WEB_IMAGE"
-ok "images pushed"
+if [ "${SKIP_BUILD:-0}" = "1" ]; then
+  log "1/5 Using images built by the Cloud Build trigger"
+else
+  log "1/5 Building images with Cloud Build (tag ${TAG})"
+  build() { # dir image
+    gcloud builds submit "$1" --region="$REGION" --config=infra/cloudbuild.yaml --quiet \
+      --substitutions="_IMAGE=$2,_REGISTRY=${DOCKERHUB_PROXY}"
+  }
+  build smartstudy-backend "$API_IMAGE"
+  build smartstudy-frontend "$WEB_IMAGE"
+fi
+ok "images ${API_IMAGE} / ${WEB_IMAGE}"
 
 # Optional provider secrets are wired in only if they exist
 OPTIONAL_SECRET_ENV=""
@@ -41,7 +45,12 @@ WEB_URL="${WEB_URL:-http://localhost:5173}"
 log "2/5 Deploying paatam-api (API + PostgREST sidecar → AlloyDB)"
 export API_IMAGE POSTGREST_IMAGE API_SA GCS_BUCKET PROJECT_ID VERTEX_LOCATION GEMINI_MODEL \
        GEMINI_IMAGE_MODEL BQ_DATASET REGION WEB_URL VPC_NETWORK VPC_SUBNET OPTIONAL_SECRET_ENV
-envsubst < infra/cloudrun/api-service.yaml > /tmp/paatam-api-service.yaml
+if command -v envsubst >/dev/null; then
+  envsubst < infra/cloudrun/api-service.yaml > /tmp/paatam-api-service.yaml
+else
+  python3 -c 'import os,sys; sys.stdout.write(os.path.expandvars(sys.stdin.read()))' \
+    < infra/cloudrun/api-service.yaml > /tmp/paatam-api-service.yaml
+fi
 gcloud run services replace /tmp/paatam-api-service.yaml --region="$REGION" --quiet
 API_URL="$(gcloud run services describe paatam-api --region="$REGION" --format='value(status.url)')"
 

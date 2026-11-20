@@ -24,6 +24,17 @@ for role in roles/alloydb.client roles/aiplatform.user roles/bigquery.dataEditor
   gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:${API_SA}" \
     --role="$role" --condition=None >/dev/null
 done
+# Deployer account for the Cloud Build trigger on branch "gcp": deploy rights only, no data access
+gcloud iam service-accounts describe "$DEPLOYER_SA" >/dev/null 2>&1 || \
+  gcloud iam service-accounts create paatam-deployer --display-name="Paatam deployer (Cloud Build trigger)"
+for role in roles/run.admin roles/artifactregistry.writer roles/cloudscheduler.admin \
+            roles/secretmanager.viewer roles/logging.logWriter roles/browser roles/compute.networkUser; do
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:${DEPLOYER_SA}" \
+    --role="$role" --condition=None >/dev/null
+done
+# lets the deployer run the API as paatam-api-sa
+gcloud iam service-accounts add-iam-policy-binding "$API_SA" \
+  --member="serviceAccount:${DEPLOYER_SA}" --role=roles/iam.serviceAccountUser >/dev/null
 # Cloud Build (runs as the Compute default service account in new projects) pushes images
 gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
