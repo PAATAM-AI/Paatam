@@ -33,6 +33,8 @@ steps:
         gcloud storage cp gs://alloydb-auth-proxy/v1.18.0/alloydb-auth-proxy.linux.amd64 /workspace/bin/alloydb-auth-proxy
         chmod +x /workspace/bin/alloydb-auth-proxy
         /workspace/bin/alloydb-auth-proxy --version
+        # The postgres image has no CA bundle; share this image's so the proxy can verify Google APIs
+        cp /etc/ssl/certs/ca-certificates.crt /workspace/bin/ca-certificates.crt
   - id: migrate
     name: mirror.gcr.io/library/postgres:17
     dir: src
@@ -42,6 +44,7 @@ steps:
       - DB_NAME=${_APP_U}
       - DB_ADMIN_USER=${_APP_U}_admin
       - MODE=${_MODE}
+      - SSL_CERT_FILE=/workspace/bin/ca-certificates.crt
     secretEnv: ["PGPASS", "AUTH_PW", "SUPABASE_DB_URL"]
     args: ["infra/migrate-db-ci.sh"]
 availableSecrets:
