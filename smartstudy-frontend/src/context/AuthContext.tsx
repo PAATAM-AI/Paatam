@@ -33,7 +33,7 @@ interface AuthContextType {
   currentBranchId: string;
   setCurrentBranchId: (id: string) => void;
   switchRole: (role: UserRole) => void;
-  loginWithProfile: (profile: UserProfile) => void;
+  loginWithProfile: (profile: UserProfile, explicitBranchId?: string) => void;
   isRole: (roles: UserRole[]) => boolean;
   logout: () => void;
 }
@@ -54,21 +54,27 @@ export const DEMO_PROFILES: Record<UserRole, UserProfile> = {
     name: 'Mohit Yadav',
     email: 'mohit.dev@paatam.in',
     role: 'TEACHER',
-    title: 'Teacher',
+    title: 'Senior Teacher • Hyderabad Central Campus',
     branchId: 'branch-main',
     branchName: 'Hyderabad Central Campus'
   },
   STUDENT: {
     id: 'student-204',
-    name: 'Aarav Patel',
-    email: 'aarav.patel@student.paatam.edu',
+    name: 'Nikhil Sharma',
+    email: 'student.demo@paatam.in',
     role: 'STUDENT',
-    title: 'Grade 10 - Section A (Roll: 14)',
+    title: 'Student • Hyderabad Central Campus (Class 10-A)',
     branchId: 'branch-main',
     branchName: 'Hyderabad Central Campus',
-    className: 'Grade 10',
+    className: 'Class 10',
     sectionName: 'A'
   }
+};
+
+export const DEMO_CREDENTIALS: Record<UserRole, { email: string; password: string }> = {
+  ADMIN: { email: 'deepak.dev@paatam.in', password: 'Paatam@123' },
+  TEACHER: { email: 'mohit.dev@paatam.in', password: 'Paatam@123' },
+  STUDENT: { email: 'student.demo@paatam.in', password: 'Paatam@123' }
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -79,14 +85,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (saved) {
       try {
         const parsed = JSON.parse(saved) as UserProfile;
-        if (parsed?.id === DEMO_PROFILES.ADMIN.id || parsed?.role === 'ADMIN') {
-          return DEMO_PROFILES.ADMIN;
+        if (parsed?.role === 'ADMIN') {
+          return {
+            ...DEMO_PROFILES.ADMIN,
+            branchId: parsed.branchId || DEMO_PROFILES.ADMIN.branchId,
+            branchName: parsed.branchName || DEMO_PROFILES.ADMIN.branchName
+          };
         }
-        if (parsed?.id === DEMO_PROFILES.TEACHER.id || parsed?.role === 'TEACHER') {
-          return { ...DEMO_PROFILES.TEACHER, branchId: parsed.branchId || DEMO_PROFILES.TEACHER.branchId, branchName: parsed.branchName || DEMO_PROFILES.TEACHER.branchName };
+        if (parsed?.role === 'TEACHER') {
+          return {
+            ...DEMO_PROFILES.TEACHER,
+            branchId: parsed.branchId || DEMO_PROFILES.TEACHER.branchId,
+            branchName: parsed.branchName || DEMO_PROFILES.TEACHER.branchName
+          };
         }
-        if (parsed?.id === DEMO_PROFILES.STUDENT.id || parsed?.role === 'STUDENT') {
-          return { ...DEMO_PROFILES.STUDENT, branchId: parsed.branchId || DEMO_PROFILES.STUDENT.branchId, branchName: parsed.branchName || DEMO_PROFILES.STUDENT.branchName };
+        if (parsed?.role === 'STUDENT') {
+          return {
+            ...DEMO_PROFILES.STUDENT,
+            branchId: parsed.branchId || DEMO_PROFILES.STUDENT.branchId,
+            branchName: parsed.branchName || DEMO_PROFILES.STUDENT.branchName
+          };
         }
         return parsed;
       } catch (e) {}
@@ -109,23 +127,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .then(data => {
         if (data.success && Array.isArray(data.branches) && data.branches.length > 0) {
           setBranches(data.branches);
-          if (!data.branches.some((b: Branch) => b.id === currentBranchId)) {
-            setCurrentBranchId(data.branches[0].id);
-          }
+          const matchedBranch = data.branches.find((b: Branch) => b.id === currentBranchId) || data.branches[0];
+          const activeId = matchedBranch.id;
+          setCurrentBranchId(activeId);
+          localStorage.setItem('paatam_branch_id', activeId);
+
+          setCurrentUser(prev => {
+            const updated = {
+              ...prev,
+              branchId: activeId,
+              branchName: matchedBranch.name || prev.branchName
+            };
+            localStorage.setItem('paatam_user', JSON.stringify(updated));
+            return updated;
+          });
         }
       })
       .catch(() => {});
   }, []);
 
   const switchRole = (newRole: UserRole) => {
-    const profile = DEMO_PROFILES[newRole];
-    setCurrentUser(profile);
-    localStorage.setItem('paatam_user', JSON.stringify(profile));
+    loginWithProfile(DEMO_PROFILES[newRole]);
   };
 
-  const loginWithProfile = (profile: UserProfile) => {
-    setCurrentUser(profile);
-    localStorage.setItem('paatam_user', JSON.stringify(profile));
+  const loginWithProfile = (profile: UserProfile, explicitBranchId?: string) => {
+    const targetBranchId = explicitBranchId || currentBranchId;
+    const matchedBranch = branches.find(b => b.id === targetBranchId) || branches[0];
+    const resolvedBranchId = matchedBranch ? matchedBranch.id : (targetBranchId || 'branch-main');
+    const resolvedBranchName = matchedBranch ? matchedBranch.name : (profile.branchName || 'Hyderabad Central Campus');
+
+    const resolvedProfile: UserProfile = {
+      ...profile,
+      branchId: resolvedBranchId,
+      branchName: resolvedBranchName
+    };
+
+    setCurrentUser(resolvedProfile);
+    setCurrentBranchId(resolvedBranchId);
+    localStorage.setItem('paatam_user', JSON.stringify(resolvedProfile));
+    localStorage.setItem('paatam_branch_id', resolvedBranchId);
   };
 
   const logout = () => {

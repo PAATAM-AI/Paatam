@@ -42,3 +42,10 @@ Thumbs.db
 .vscode/
 .idea/
 *.tsbuildinfo
+
+# Scratch and diff dumps
+rcApp.tsx
+*-changes.txt
+local-changes.txt
+local-core-changes.txt
+remote-core-changes.txt

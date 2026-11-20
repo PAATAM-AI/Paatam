@@ -23,5 +23,15 @@ dist-ssr
 *.sln
 *.sw?
 
-# Local credentials
+# Local credentials and environment
 creds.txt
+.env
+.env.*
+!.env.example
+
+# Scratch and diff dumps
+*-changes.txt
+local-changes.txt
+local-core-changes.txt
+remote-core-changes.txt
+

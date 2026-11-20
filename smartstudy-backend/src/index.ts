@@ -24,7 +24,43 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 // Global Middleware
-app.use(cors());
+const configuredCorsOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+
+const defaultAllowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:8080',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:8080'
+];
+
+const allowedOriginsSet = new Set([...defaultAllowedOrigins, ...configuredCorsOrigins]);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow non-browser requests or same-origin requests without Origin header (curl, mobile, backend-to-backend)
+    if (!origin) return callback(null, true);
+
+    // If wildcard '*' is configured or the origin is explicitly allowed
+    if (configuredCorsOrigins.includes('*') || allowedOriginsSet.has(origin)) {
+      return callback(null, true);
+    }
+
+    // Allow all local development origins on any port and ngrok tunnels
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) || origin.endsWith('.ngrok-free.app')) {
+      return callback(null, true);
+    }
+
+    callback(null, false);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-branch-id', 'x-corporate-id', 'ngrok-skip-browser-warning']
+}));
 app.use((req, res, next) => {
   if (req.url.startsWith('//')) {
     req.url = req.url.replace(/^\/+/, '/');
