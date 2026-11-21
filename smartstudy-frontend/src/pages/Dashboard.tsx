@@ -4,6 +4,7 @@ import SubmissionReviewModal from '../components/SubmissionReviewModal';
 import BulkEvaluationModal from '../components/BulkEvaluationModal';
 import { API_BASE_URL } from '../config/api';
 import LanguageSelect from '../components/LanguageSelect';
+import { roundStudentScore } from '../utils/score';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -456,7 +457,7 @@ export default function Dashboard() {
                           <span className="badge-pill badge-purple">{sub.language || 'English'}</span>
                         </td>
                         <td style={{ fontWeight: 800, color: '#1E40AF' }}>
-                          {sub.finalScore ?? sub.aiEvaluation?.score ?? 0}%
+                          {roundStudentScore(sub.finalScore ?? sub.aiEvaluation?.score)}%
                         </td>
                         <td>
                           {sub.status === 'approved' ? (
@@ -716,7 +717,7 @@ export default function Dashboard() {
                           {(sub.aiEvaluation?.confidence || 0.94 * 100).toFixed(0)}% Match
                         </td>
                         <td style={{ fontWeight: 800, fontSize: '1rem', color: '#1E40AF' }}>
-                          {sub.finalScore ?? sub.aiEvaluation?.score ?? 0}%
+                          {roundStudentScore(sub.finalScore ?? sub.aiEvaluation?.score)}%
                         </td>
                         <td>
                           {sub.status === 'approved' ? (

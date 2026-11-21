@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ScanLine, FileStack, ChevronRight, FileText, Trash2 } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
+import { roundStudentScore } from '../utils/score';
 import ScanGrade from './ScanGrade';
 
 type Tab = 'results' | 'scan';
@@ -171,7 +172,7 @@ export default function PaperDetail() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
                 {submissions.map((sub) => {
-                  const scoreVal = sub.finalScore ?? sub.aiEvaluation?.score ?? 0;
+                  const scoreVal = roundStudentScore(sub.finalScore ?? sub.aiEvaluation?.score);
                   const maxScore = sub.maxScore || sub.aiEvaluation?.maxScore || 0;
                   const isApproved = sub.status === 'approved';
                   return (

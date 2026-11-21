@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../config/api';
+import { roundStudentScore } from '../utils/score';
 
 const isPdfUrl = (url?: string) => Boolean(url && (/\.pdf(\?|#|$)/i.test(url) || url.startsWith('data:application/pdf') || url.includes('/pdf')));
 
@@ -34,7 +35,7 @@ export default function VerificationPage() {
           setSubmission(found);
           setFeedback(found.aiEvaluation?.feedback || found.finalFeedback || '');
           setHint(found.aiEvaluation?.socraticHint || found.finalHint || '');
-          setScore(found.aiEvaluation?.score ?? found.finalScore ?? 0);
+          setScore(roundStudentScore(found.aiEvaluation?.score ?? found.finalScore));
         }
       }
     } catch (err) {

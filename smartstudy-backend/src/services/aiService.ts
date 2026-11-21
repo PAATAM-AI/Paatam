@@ -1106,7 +1106,7 @@ Return ONLY a valid JSON object matching this structure:
       const questionEvaluations = normalizeQuestionEvaluations(rawEvaluations, assignedQuestions, existingOcrText);
       const totalMarks = questionEvaluations.reduce((total, evaluation) => total + evaluation.marks, 0);
       const normalizedScore = questionEvaluations.length > 0
-        ? Math.round(questionEvaluations.reduce((total, evaluation) => total + evaluation.earnedMarks, 0) * 100) / 100
+        ? Math.round(questionEvaluations.reduce((total, evaluation) => total + evaluation.earnedMarks, 0))
         : (typeof parsed.score === 'number' ? Math.round(Math.min(100, Math.max(0, parsed.score))) : 0);
       console.log(`📊 [EVALUATION PARSED] Score: ${normalizedScore}/${totalMarks}, Questions: ${questionEvaluations.length}, Excelled: [${(Array.isArray(parsed.excelledAreas) ? parsed.excelledAreas : []).join(', ')}], Gaps: [${(Array.isArray(parsed.knowledgeGaps) ? parsed.knowledgeGaps : []).join(', ')}]`);
       return {
@@ -1158,7 +1158,7 @@ Return ONLY a valid JSON object matching this structure:
     });
 
     const totalMarks = ordered.reduce((total, evaluation) => total + (evaluation.marks || 5), 0);
-    const normalizedScore = Math.round(ordered.reduce((total, evaluation) => total + evaluation.earnedMarks, 0) * 100) / 100;
+    const normalizedScore = Math.round(ordered.reduce((total, evaluation) => total + evaluation.earnedMarks, 0));
     const excelledAreas = batchResults.flatMap((entry) => Array.isArray(entry.parsed.excelledAreas) ? entry.parsed.excelledAreas : []);
     const knowledgeGaps = batchResults.flatMap((entry) => Array.isArray(entry.parsed.knowledgeGaps) ? entry.parsed.knowledgeGaps : []);
     console.log(`📊 [EVALUATION PARSED] Score: ${normalizedScore}/${totalMarks}, Questions: ${ordered.length}, Excelled: [${excelledAreas.join(', ')}], Gaps: [${knowledgeGaps.join(', ')}]`);
@@ -1185,7 +1185,7 @@ Return ONLY a valid JSON object matching this structure:
       const questionEvaluations = normalizeQuestionEvaluations(rawEvaluations, assignedQuestions);
       const totalMarks = questionEvaluations.reduce((total, evaluation) => total + evaluation.marks, 0);
       const normalizedScore = questionEvaluations.length > 0
-        ? Math.round(questionEvaluations.reduce((total, evaluation) => total + evaluation.earnedMarks, 0) * 100) / 100
+        ? Math.round(questionEvaluations.reduce((total, evaluation) => total + evaluation.earnedMarks, 0))
         : (typeof parsed.score === 'number' ? Math.round(Math.min(100, Math.max(0, parsed.score))) : 0);
       console.log(`📊 [EVALUATION PARSED] Score: ${normalizedScore}/${totalMarks}, Questions: ${questionEvaluations.length}, Excelled: [${(Array.isArray(parsed.excelledAreas) ? parsed.excelledAreas : []).join(', ')}], Gaps: [${(Array.isArray(parsed.knowledgeGaps) ? parsed.knowledgeGaps : []).join(', ')}]`);
       return {

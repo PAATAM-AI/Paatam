@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Layers, Upload, X, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
+import { roundStudentScore } from '../utils/score';
 import LanguageSelect from './LanguageSelect';
 
 interface BulkEvaluationModalProps {
@@ -436,7 +437,7 @@ export default function BulkEvaluationModal({ isOpen, assignmentId = '', onClose
                   </div>
                 ) : (
                   batchJob.submissions.map((sub: any, idx: number) => {
-                    const scoreVal = sub.aiEvaluation?.score ?? sub.finalScore ?? 0;
+                    const scoreVal = roundStudentScore(sub.aiEvaluation?.score ?? sub.finalScore);
                     const maxScore = sub.aiEvaluation?.maxScore ?? 100;
                     return (
                       <div

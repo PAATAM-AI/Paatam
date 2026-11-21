@@ -207,7 +207,7 @@ export default function ReviewSubmission() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/submissions/${submission.id}/approve`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ feedback, socraticHint: hint, score: Math.round(totalEarned * 100) / 100, questionEvaluations: questions })
+        body: JSON.stringify({ feedback, socraticHint: hint, score: Math.round(totalEarned), questionEvaluations: questions })
       });
       if ((await response.json()).success) { setApproved(true); alert('Submission approved successfully!'); }
     } catch {
@@ -256,7 +256,7 @@ export default function ReviewSubmission() {
           <div className="result-score-summary">
             <div className="score-text-group">
               <span className="score-label">Total Marks</span>
-              <strong className="score-value">{totalEarned.toFixed(2)} / {totalMarks}</strong>
+              <strong className="score-value">{Math.round(totalEarned)} / {totalMarks}</strong>
             </div>
             <div className="score-circle-ring">
               <svg viewBox="0 0 36 36" className="circle-chart">

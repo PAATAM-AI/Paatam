@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { roundStudentScore } from '../utils/score';
 
 interface SubmissionReviewModalProps {
   submission: any;
@@ -11,7 +12,7 @@ const isPdfUrl = (url?: string) => Boolean(url && (/\.pdf(\?|#|$)/i.test(url) ||
 export default function SubmissionReviewModal({ submission, onClose, onApprove }: SubmissionReviewModalProps) {
   const [feedback, setFeedback] = useState(submission.aiEvaluation?.feedback || submission.finalFeedback || '');
   const [hint, setHint] = useState(submission.aiEvaluation?.socraticHint || submission.finalHint || '');
-  const [score, setScore] = useState(submission.aiEvaluation?.score ?? submission.finalScore ?? 0);
+  const [score, setScore] = useState(roundStudentScore(submission.aiEvaluation?.score ?? submission.finalScore));
   
   // Page Carousel & Fullscreen Zoom states
   const [activePageIndex, setActivePageIndex] = useState(0);

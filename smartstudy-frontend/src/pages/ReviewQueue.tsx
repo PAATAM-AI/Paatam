@@ -9,6 +9,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { API_BASE_URL } from '../config/api';
+import { roundStudentScore } from '../utils/score';
 
 export default function ReviewQueue({ onScanScript }: { onScanScript?: () => void } = {}) {
   const [searchParams] = useSearchParams();
@@ -67,7 +68,7 @@ export default function ReviewQueue({ onScanScript }: { onScanScript?: () => voi
       `"${s.studentName || s.student_name || 'Student'}"`,
       `"${s.subject || 'General'}"`,
       `"${s.assignment?.title || 'Class Test'}"`,
-      s.finalScore || s.aiEvaluation?.score || 85,
+      roundStudentScore(s.finalScore ?? s.aiEvaluation?.score),
       s.status || 'pending_review'
     ]);
 
@@ -221,7 +222,7 @@ export default function ReviewQueue({ onScanScript }: { onScanScript?: () => voi
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
               {filteredSubmissions.map((sub) => {
-                const scoreVal = sub.finalScore ?? sub.aiEvaluation?.score ?? 5;
+                const scoreVal = roundStudentScore(sub.finalScore ?? sub.aiEvaluation?.score);
                 const maxScore = sub.maxScore || sub.aiEvaluation?.maxScore || sub.assignment?.questions?.reduce((sum: number, question: any) => sum + (Number(question.marks) || 5), 0) || 5;
                 const isApproved = sub.status === 'approved';
 

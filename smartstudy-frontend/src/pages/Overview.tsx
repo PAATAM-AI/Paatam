@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import AgentPipelineStatus from '../components/AgentPipelineStatus';
 import { API_BASE_URL } from '../config/api';
+import { roundStudentScore } from '../utils/score';
 
 export default function Overview() {
   const [submissions, setSubmissions] = useState<any[]>([]);
@@ -187,7 +188,7 @@ export default function Overview() {
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
                   {submissions.slice(0, 5).map((sub) => {
-                    const scoreVal = sub.finalScore ?? sub.aiEvaluation?.score ?? 0;
+                    const scoreVal = roundStudentScore(sub.finalScore ?? sub.aiEvaluation?.score);
                     const maxScore = getSubMaxScore(sub);
                     const pctVal = Math.round((scoreVal / maxScore) * 100);
                     const isApproved = sub.status === 'approved';
