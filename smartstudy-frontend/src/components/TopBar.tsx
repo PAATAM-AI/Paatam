@@ -8,7 +8,7 @@ import {
   FileCheck2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import schoolLogo from '../assets/OIP.png';
+import schoolLogo from '../assets/logo.jpg';
 
 interface TopBarProps {
   onClearDb?: () => void;
@@ -76,21 +76,18 @@ export default function TopBar({ onClearDb: _onClearDb }: TopBarProps) {
       id: 'n1',
       title: 'Answer Sheet Ready for Review',
       desc: 'Student 42 (Mid Term Exam - Paper 2 Reading) waiting for teacher sign-off.',
-      time: '5m ago',
       path: '/submissions'
     },
     {
       id: 'n2',
       title: 'AI Evaluation Completed',
       desc: 'Psychology Unit 3 auto-graded with 98% OCR confidence.',
-      time: '18m ago',
       path: '/analytics'
     },
     {
       id: 'n3',
       title: 'Faculty Timetable Updated',
       desc: 'Section schedules were refreshed for the current week.',
-      time: '1h ago',
       path: '/classes'
     }
   ];
@@ -98,9 +95,9 @@ export default function TopBar({ onClearDb: _onClearDb }: TopBarProps) {
   return (
     <header className="app-topbar no-print">
       <div className="topbar-school-block">
-        <img src={schoolLogo} alt="Bellwether school logo" className="topbar-school-logo" />
+        <img src={schoolLogo} alt="Paatam logo" className="topbar-school-logo" />
         <div className="topbar-school-text">
-          <span className="topbar-school-name">Bellwether International School</span>
+          <span className="topbar-school-name">Paatam International School</span>
           <span className="topbar-school-meta">Academic Campus · Session 2026-27</span>
         </div>
       </div>
@@ -167,7 +164,6 @@ export default function TopBar({ onClearDb: _onClearDb }: TopBarProps) {
                     <div style={{ flex: 1 }}>
                       <div className="notification-item-title">{notif.title}</div>
                       <div className="notification-item-desc">{notif.desc}</div>
-                      <div className="notification-item-time">{notif.time}</div>
                     </div>
                   </div>
                 ))}

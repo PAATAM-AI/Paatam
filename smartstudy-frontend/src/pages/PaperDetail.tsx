@@ -196,9 +196,6 @@ export default function PaperDetail() {
                         <div style={{ fontWeight: 700, fontSize: '1rem', color: '#111827' }}>
                           {sub.studentName || sub.student_name || 'Unnamed student'}
                         </div>
-                        <div style={{ fontSize: '0.8125rem', color: '#64748B', marginTop: '0.15rem' }}>
-                          Submitted {sub.submittedAt ? new Date(sub.submittedAt).toLocaleString() : 'recently'}
-                        </div>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                         <div style={{ fontWeight: 800, fontSize: '1rem', color: '#111827' }}>

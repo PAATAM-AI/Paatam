@@ -100,7 +100,7 @@ export default function ExamGenerator() {
     } catch {}
     return {
       mode: 'text',
-      schoolName: 'PAATAM.AI SENIOR SECONDARY SCHOOL',
+      schoolName: 'Paatam International School',
       subtitle: 'AFFILIATED TO CENTRAL BOARD OF SECONDARY EDUCATION',
       affiliationCode: 'CBSE / DEL / 2026',
       academicSession: '2025 - 2026',
@@ -2048,7 +2048,6 @@ export default function ExamGenerator() {
                       }}>
                         <span>Roll No.: _____________________</span>
                         <span>Student Name: ________________________________</span>
-                        <span>Date: _______________</span>
                       </div>
                     </div>
                   ) : (
@@ -2057,7 +2056,7 @@ export default function ExamGenerator() {
                         <img src={letterhead.logoUrl} alt="Logo" style={{ height: '48px', width: 'auto', margin: '0 auto 0.35rem auto', display: 'block' }} />
                       )}
                       <div className="print-school-name" style={{ fontSize: '1.35rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#0F172A' }}>
-                        {letterhead.schoolName || 'PAATAM.AI SENIOR SECONDARY SCHOOL'}
+                        {letterhead.schoolName || 'Paatam International School'}
                       </div>
                       <div className="print-school-sub" style={{ fontSize: '0.78rem', fontWeight: 600, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.2rem' }}>
                         {letterhead.subtitle || 'AFFILIATED TO CENTRAL BOARD OF SECONDARY EDUCATION'}
@@ -2103,7 +2102,6 @@ export default function ExamGenerator() {
                       }}>
                         <span>Roll No.: _____________________</span>
                         <span>Student Name: ________________________________</span>
-                        <span>Date: _______________</span>
                       </div>
                     </div>
                   )}
@@ -2546,8 +2544,6 @@ export default function ExamGenerator() {
                   return filtered.map((paper) => {
                     const qCount = Array.isArray(paper.questions) ? paper.questions.length : 0;
                     const marks = paper.targetMarks || (Array.isArray(paper.questions) ? paper.questions.reduce((s: number, q: any) => s + (Number(q.marks) || 1), 0) : 0);
-                    const formattedDate = paper.createdAt ? new Date(paper.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Recent';
-
                     return (
                       <div 
                         key={paper.id}
@@ -2581,7 +2577,6 @@ export default function ExamGenerator() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.35rem', fontSize: '0.75rem', color: '#64748B' }}>
                             {paper.className && <span>Class: <strong>{paper.className}</strong></span>}
                             {paper.subject && <span>Subject: <strong>{paper.subject}</strong></span>}
-                            <span>• {formattedDate}</span>
                           </div>
                         </div>
 
@@ -3010,7 +3005,7 @@ export default function ExamGenerator() {
                 onClick={() => {
                   const defaults: LetterheadConfig = {
                     mode: 'text',
-                    schoolName: 'PAATAM.AI SENIOR SECONDARY SCHOOL',
+                    schoolName: 'Paatam International School',
                     subtitle: 'AFFILIATED TO CENTRAL BOARD OF SECONDARY EDUCATION',
                     affiliationCode: 'CBSE / DEL / 2026',
                     academicSession: '2025 - 2026',

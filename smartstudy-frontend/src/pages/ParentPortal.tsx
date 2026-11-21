@@ -98,7 +98,6 @@ export default function ParentPortal() {
               <p style={{ margin: 0, color: '#1F2937', fontSize: '0.875rem' }}>
                 👋 Welcome to PAATAM.AI Parent Digest! You will receive instant notifications when teachers dispatch assignments and approve evaluated paper copies.
               </p>
-              <div style={{ fontSize: '0.6875rem', color: '#94A3B8', textAlign: 'right', marginTop: '0.25rem' }}>09:00 AM</div>
             </div>
             
             {notifications.map((notif, index) => (
@@ -139,9 +138,6 @@ export default function ParentPortal() {
                   </div>
                 )}
 
-                <div style={{ fontSize: '0.6875rem', color: '#059669', textAlign: 'right', marginTop: '0.25rem', fontWeight: 600 }}>
-                  {new Date(notif.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ✓✓
-                </div>
               </div>
             ))}
 

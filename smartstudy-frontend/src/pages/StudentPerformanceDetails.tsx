@@ -816,7 +816,7 @@ export default function StudentPerformanceDetails({
                 <thead>
                   <tr>
                     <th>#</th><th>Assessment Title</th><th>Subject</th><th>Subject ID</th>
-                    <th>Type</th><th>Due Date</th><th>Submission Date</th><th>Score</th><th>Grade</th>
+                    <th>Type</th><th>Score</th><th>Grade</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -827,14 +827,12 @@ export default function StudentPerformanceDetails({
                       <td>{item.subject}</td>
                       <td>{item.subjectId}</td>
                       <td>{item.type}</td>
-                      <td>{item.dueDate}</td>
-                      <td>{item.submissionDate}</td>
                       <td><span className="spd-table-score">{item.percentage}%</span></td>
                       <td><span className={`spd-grade-badge ${getGrade(item.percentage).toLowerCase()}`}>{getGrade(item.percentage)}</span></td>
                     </tr>
                   ))}
                   {!normalizedAssessments.length && (
-                    <tr><td colSpan={9}>No assessments found for this subject.</td></tr>
+                    <tr><td colSpan={7}>No assessments found for this subject.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -892,13 +890,12 @@ export default function StudentPerformanceDetails({
               <div className="spd-table-wrap">
                 <table className="spd-remedial-table">
                   <thead>
-                    <tr><th>Topic / Gap</th><th>Generated On</th><th>Content</th><th>Actions</th></tr>
+                    <tr><th>Topic / Gap</th><th>Content</th><th>Actions</th></tr>
                   </thead>
                   <tbody>
                     {currentPlans.map((plan) => (
                       <tr key={plan.id}>
                         <td><strong>{plan.topic}</strong><small className="spd-plan-subject">{plan.subject}</small></td>
-                        <td>{plan.generatedOn}</td>
                         <td>{plan.content}</td>
                         <td>
                           <div className="spd-action-btns">
@@ -916,7 +913,7 @@ export default function StudentPerformanceDetails({
                       </tr>
                     ))}
                     {!currentPlans.length && (
-                      <tr><td colSpan={4}>No remedial plans have been generated for this subject.</td></tr>
+                      <tr><td colSpan={3}>No remedial plans have been generated for this subject.</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -1201,12 +1198,12 @@ export default function StudentPerformanceDetails({
           </div>
           <div className="spd-table-wrap">
             <table className="spd-remedial-table">
-              <thead><tr><th>Topic / Gap</th><th>Generated On</th><th>Content</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Topic / Gap</th><th>Content</th><th>Actions</th></tr></thead>
               <tbody>
                 {currentPlans.map((plan) => (
                   <tr key={plan.id}>
                     <td>{plan.topic}<small className="spd-plan-subject">{plan.subject}</small></td>
-                    <td>{plan.generatedOn}</td><td>{plan.content}</td>
+                    <td>{plan.content}</td>
                     <td>
                       <div className="spd-action-btns">
                         <button className="spd-sm-btn" type="button" onClick={() => setViewPlan(plan)}>View</button>
@@ -1217,7 +1214,7 @@ export default function StudentPerformanceDetails({
                     </td>
                   </tr>
                 ))}
-                {!currentPlans.length && <tr><td colSpan={4}>No remedial plans available.</td></tr>}
+                {!currentPlans.length && <tr><td colSpan={3}>No remedial plans available.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -1343,7 +1340,6 @@ export default function StudentPerformanceDetails({
               <p><strong>Topic gap:</strong> {viewPlan.topic}</p>
               <p><strong>Assessment format:</strong> {viewPlan.format}</p>
               <p><strong>Number of questions:</strong> {viewPlan.questions}</p>
-              <p><strong>Generated on:</strong> {viewPlan.generatedOn}</p>
               <p><strong>Status:</strong> {viewPlan.status}</p>
               <div className="spd-note-box">
                 This entry represents the generated plan configuration. Actual question content will be provided when the exam-generation API is connected.

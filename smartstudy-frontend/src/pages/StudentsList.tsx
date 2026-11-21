@@ -565,9 +565,7 @@ export default function StudentsList({
                       </span>
                     </td>
                     <td>
-                      {latest
-                        ? `${latest.subject} (${latest.submittedAt || 'Assessment'})`
-                        : 'No assessment'}
+                      {latest ? latest.subject : 'No assessment'}
                     </td>
                     <td>
                       <span
