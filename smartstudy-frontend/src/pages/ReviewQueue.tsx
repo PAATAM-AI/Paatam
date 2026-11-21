@@ -61,22 +61,21 @@ export default function ReviewQueue({ onScanScript }: { onScanScript?: () => voi
       return;
     }
 
-    const headers = ['ID', 'Student Name', 'Subject', 'Assessment', 'Score', 'Status', 'Submitted At'];
+    const headers = ['ID', 'Student Name', 'Subject', 'Assessment', 'Score', 'Status'];
     const rows = submissions.map(s => [
       s.id,
       `"${s.studentName || s.student_name || 'Student'}"`,
       `"${s.subject || 'General'}"`,
       `"${s.assignment?.title || 'Class Test'}"`,
       s.finalScore || s.aiEvaluation?.score || 85,
-      s.status || 'pending_review',
-      s.submittedAt || s.submitted_at || new Date().toISOString()
+      s.status || 'pending_review'
     ]);
 
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `markmate_grades_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', 'markmate_grades.csv');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

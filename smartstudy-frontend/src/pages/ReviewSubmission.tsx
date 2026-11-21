@@ -223,8 +223,6 @@ export default function ReviewSubmission() {
   const rollNumber = submission.rollNumber || '02';
   const examTitle = submission.assignment?.title || submission.subject || 'Mid Term Examination';
   const paperTitle = submission.paperTitle || 'Paper 2 Reading';
-  const dateStr = submission.createdAt ? new Date(submission.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '15 Sep 2025';
-
   const filteredQuestions = questions.filter((q) => {
     if (questionFilter === 'Needs Review') return q.scorePercent < 90;
     if (questionFilter === 'Full Credit') return q.scorePercent >= 90;
@@ -245,7 +243,6 @@ export default function ReviewSubmission() {
               <span className="meta-chip">Roll No: {rollNumber}</span>
               <span className="meta-chip">{examTitle}</span>
               <span className="meta-chip">{paperTitle}</span>
-              <span className="meta-chip">Date: {dateStr}</span>
             </div>
           </div>
         </div>
